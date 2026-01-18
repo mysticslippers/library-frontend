@@ -3,6 +3,14 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./index.css";
 import { StoreProvider } from "./app/providers/StoreProvider";
+import { ensureSeedUsers, getCurrentSession } from "./shared/api/authApi";
+import { store } from "./app/store";
+import { setSession } from "./features/auth/model/authSlice";
+
+ensureSeedUsers();
+
+const session = getCurrentSession();
+if (session) store.dispatch(setSession(session));
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
