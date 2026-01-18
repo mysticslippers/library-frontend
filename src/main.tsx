@@ -1,7 +1,8 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
-import "./index.css";
+import "./tailwind.css";
+import "./index.scss";
 import { StoreProvider } from "./app/providers/StoreProvider";
 import { ensureSeedUsers, getCurrentSession } from "./shared/api/authApi";
 import { store } from "./app/store";
