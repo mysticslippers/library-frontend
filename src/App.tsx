@@ -13,10 +13,8 @@ import RequireAuth from "./shared/routing/RequireAuth";
 import RequireRole from "./shared/routing/RequireRole";
 import RedirectIfAuth from "./shared/routing/RedirectIfAuth";
 
-// временные заглушки под зоны
-function ReaderPlaceholder() {
-    return <div className="p-6 text-xl font-semibold">Reader area</div>;
-}
+import ReaderLayout from "./pages/reader/ReaderLayout";
+
 function LibrarianPlaceholder() {
     return <div className="p-6 text-xl font-semibold">Librarian area</div>;
 }
@@ -128,12 +126,11 @@ export default function App() {
                             }
                         />
 
-                        {/* Reader: доступно всем авторизованным */}
                         <Route
-                            path="/reader"
+                            path="/reader/*"
                             element={
                                 <RequireAuth>
-                                    <ReaderPlaceholder />
+                                    <ReaderLayout />
                                 </RequireAuth>
                             }
                         />
