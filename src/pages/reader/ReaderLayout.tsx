@@ -7,44 +7,46 @@ import ReaderReservationsPage from "./reservations/ReaderReservationsPage";
 
 function navCls({ isActive }: { isActive: boolean }) {
     return [
-        "px-3 py-2 rounded-2xl transition",
+        "whitespace-nowrap px-3 py-2 rounded-2xl transition",
         isActive ? "bg-brand-50 text-brand-800 border border-brand-200" : "hover:bg-brand-50",
     ].join(" ");
 }
 
-function ReaderNav() {
+function ReaderTopNav() {
     return (
-        <aside className="w-full md:w-60 border-b md:border-b-0 md:border-r bg-white">
-            <div className="p-4 font-bold">
-        <span className="bg-gradient-to-r from-brand-700 to-brand-500 bg-clip-text text-transparent">
-          Reader
-        </span>
-            </div>
+        <div className="border-b bg-white">
+            <div className="px-6 py-4">
+                <div className="font-bold">
+          <span className="bg-gradient-to-r from-brand-700 to-brand-500 bg-clip-text text-transparent">
+            Reader
+          </span>
+                </div>
 
-            <nav className="px-2 pb-4 flex md:block gap-2 overflow-x-auto">
-                <NavLink className={navCls} to="/reader/catalog">
-                    Каталог
-                </NavLink>
-                <NavLink className={navCls} to="/reader/reservations">
-                    Мои брони
-                </NavLink>
-                <NavLink className={navCls} to="/reader/loans">
-                    Мои выдачи
-                </NavLink>
-                <NavLink className={navCls} to="/reader/fines">
-                    Штрафы
-                </NavLink>
-            </nav>
-        </aside>
+                <nav className="mt-3 flex flex-wrap gap-2">
+                    <NavLink className={navCls} to="/reader/catalog">
+                        Каталог
+                    </NavLink>
+                    <NavLink className={navCls} to="/reader/reservations">
+                        Мои брони
+                    </NavLink>
+                    <NavLink className={navCls} to="/reader/loans">
+                        Мои выдачи
+                    </NavLink>
+                    <NavLink className={navCls} to="/reader/fines">
+                        Штрафы
+                    </NavLink>
+                </nav>
+            </div>
+        </div>
     );
 }
 
 export default function ReaderLayout() {
     return (
-        <div className="min-h-[calc(100vh-80px)] flex flex-col md:flex-row">
-            <ReaderNav />
+        <div className="min-h-[calc(100vh-80px)] bg-white">
+            <ReaderTopNav />
 
-            <section className="flex-1 bg-white">
+            <section className="flex-1">
                 <Routes>
                     <Route path="/" element={<Navigate to="catalog" replace />} />
                     <Route path="catalog" element={<ReaderCatalogPage />} />
