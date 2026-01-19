@@ -3,6 +3,9 @@ import { useSelector } from "react-redux";
 import type { RootState } from "@/app/store";
 import { Link } from "react-router-dom";
 import { listMyFines, payFine, type MyFineView } from "@/shared/api/finesMockApi";
+import PageHeader from "@/shared/ui/PageHeader";
+import Surface from "@/shared/ui/Surface";
+import StatusBadge from "@/shared/ui/StatusBadge";
 
 export default function ReaderFinesPage() {
     const user = useSelector((s: RootState) => s.auth.user);
@@ -37,54 +40,65 @@ export default function ReaderFinesPage() {
 
     return (
         <div className="p-6">
-            <div className="flex items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-brand-700">Штрафы</h1>
-                    <p className="mt-1 text-slate-600">
-                        Неоплачено: <b>{totalUnpaid.toFixed(2)} €</b>
-                    </p>
-                </div>
-                <Link className="rounded-xl border px-3 py-1.5 hover:bg-brand-50 hover:border-brand-200" to="/reader/loans">
-                    К выдачам
-                </Link>
-            </div>
+            <PageHeader
+                title="Штрафы"
+                subtitle={`Неоплачено: ${totalUnpaid.toFixed(2)} €`}
+                actionLabel="К выдачам"
+                actionTo="/reader/loans"
+            />
 
             <div className="mt-6">
-                {loading ? (
-                    <div className="rounded-2xl border p-6 text-slate-600">Загрузка…</div>
-                ) : items.length === 0 ? (
-                    <div className="rounded-2xl border p-6 text-slate-600">Штрафов нет 🎉</div>
-                ) : (
-                    <div className="space-y-3">
-                        {items.map((f) => (
-                            <div key={f.id} className="rounded-2xl border bg-white p-4">
-                                <div className="flex items-start justify-between gap-4">
-                                    <div className="min-w-0">
-                                        <div className="font-semibold">{f.description}</div>
-                                        <div className="mt-1 text-sm text-slate-600">
-                                            Сумма: <b>{f.amount.toFixed(2)} €</b> · Дата: {f.dueDate}
-                                        </div>
-                                        <div className="mt-1 text-sm">
-                                            Статус:{" "}
-                                            <span className={f.state === "UNPAID" ? "text-red-600 font-semibold" : "text-emerald-700 font-semibold"}>
-                        {f.state}
-                      </span>
-                                            {f.paymentDate ? <span className="text-slate-500"> · Оплачено: {f.paymentDate}</span> : null}
+                <Surface>
+                    {loading ? (
+                        <div className="rounded-2xl border border-slate-200 p-6 text-slate-600">Загрузка…</div>
+                    ) : items.length === 0 ? (
+                        <div className="rounded-2xl border border-slate-200 p-6 text-slate-600">
+                            Штрафов нет 🎉{" "}
+                            <Link className="text-brand-700 hover:underline" to="/reader/loans">
+                                Перейти к выдачам
+                            </Link>
+                            .
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {items.map((f) => {
+                                const disabled = busyId === f.id;
+
+                                return (
+                                    <div key={f.id} className="rounded-3xl border border-slate-200/70 bg-white p-4">
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div className="min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="font-semibold text-slate-900">{f.description}</div>
+                                                    <StatusBadge value={f.state} />
+                                                </div>
+
+                                                <div className="mt-1 text-sm text-slate-600">
+                                                    Сумма: <b>{f.amount.toFixed(2)} €</b> · Дата: {f.dueDate}
+                                                    {f.paymentDate ? <span className="text-slate-500"> · Оплачено: {f.paymentDate}</span> : null}
+                                                </div>
+
+                                                <div className="mt-1 text-xs text-slate-500">
+                                                    Fine ID: <span className="font-mono">{f.id}</span>
+                                                </div>
+                                            </div>
+
+                                            <button
+                                                disabled={f.state !== "UNPAID" || disabled}
+                                                onClick={() => onPay(f.id)}
+                                                className="rounded-2xl bg-gradient-to-r from-brand-600 to-brand-500 px-3 py-2 font-semibold text-white
+                                   shadow-[0_12px_30px_-18px_rgba(124,58,237,0.60)]
+                                   hover:brightness-105 transition disabled:opacity-60"
+                                            >
+                                                {disabled ? "Оплата…" : "Оплатить"}
+                                            </button>
                                         </div>
                                     </div>
-
-                                    <button
-                                        disabled={f.state !== "UNPAID" || busyId === f.id}
-                                        onClick={() => onPay(f.id)}
-                                        className="rounded-xl bg-brand-600 text-white px-3 py-1.5 hover:bg-brand-700 disabled:opacity-60"
-                                    >
-                                        {busyId === f.id ? "Оплата…" : "Оплатить"}
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
+                                );
+                            })}
+                        </div>
+                    )}
+                </Surface>
             </div>
         </div>
     );
