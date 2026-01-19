@@ -1,28 +1,39 @@
-import { Link, Navigate, Route, Routes } from "react-router-dom";
+import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 import ReaderCatalogPage from "./catalog/ReaderCatalogPage";
 import ReaderLoansPage from "./loans/ReaderLoansPage";
 import ReaderFinesPage from "./fines/ReaderFinesPage";
 import ReaderBookDetailsPage from "./details/ReaderBookDetailsPage";
 import ReaderReservationsPage from "./reservations/ReaderReservationsPage";
 
+function navCls({ isActive }: { isActive: boolean }) {
+    return [
+        "px-3 py-2 rounded-2xl transition",
+        isActive ? "bg-brand-50 text-brand-800 border border-brand-200" : "hover:bg-brand-50",
+    ].join(" ");
+}
 
 function ReaderNav() {
     return (
         <aside className="w-full md:w-60 border-b md:border-b-0 md:border-r bg-white">
-            <div className="p-4 font-semibold text-brand-700">Reader</div>
+            <div className="p-4 font-bold">
+        <span className="bg-gradient-to-r from-brand-700 to-brand-500 bg-clip-text text-transparent">
+          Reader
+        </span>
+            </div>
+
             <nav className="px-2 pb-4 flex md:block gap-2 overflow-x-auto">
-                <Link className="px-3 py-2 rounded-xl hover:bg-brand-50" to="/reader/catalog">
+                <NavLink className={navCls} to="/reader/catalog">
                     Каталог
-                </Link>
-                <Link className="px-3 py-2 rounded-xl hover:bg-brand-50" to="/reader/reservations">
+                </NavLink>
+                <NavLink className={navCls} to="/reader/reservations">
                     Мои брони
-                </Link>
-                <Link className="px-3 py-2 rounded-xl hover:bg-brand-50" to="/reader/loans">
+                </NavLink>
+                <NavLink className={navCls} to="/reader/loans">
                     Мои выдачи
-                </Link>
-                <Link className="px-3 py-2 rounded-xl hover:bg-brand-50" to="/reader/fines">
+                </NavLink>
+                <NavLink className={navCls} to="/reader/fines">
                     Штрафы
-                </Link>
+                </NavLink>
             </nav>
         </aside>
     );
