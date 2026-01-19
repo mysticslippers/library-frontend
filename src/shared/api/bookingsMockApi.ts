@@ -1,6 +1,19 @@
 import type { Booking, BookingStatus, BookingViewDto } from "../types/library";
 import { materialCards } from "../fixtures/materials";
 
+export type StaffBookingRow = {
+    id: string;
+    status: Booking["status"];
+    bookingDate: string;
+    bookingDeadline: string;
+
+    readerId: string;
+    materialId: string;
+    materialTitle: string;
+
+    libraryId: string;
+};
+
 const LS_BOOKINGS = "lib.bookings";
 
 function uuid() {
@@ -120,6 +133,64 @@ export async function cancelBooking(params: { readerId: string; bookingId: strin
 
     if (idx === -1) throw new Error("BOOKING_NOT_FOUND");
     if (all[idx].readerId !== params.readerId) throw new Error("FORBIDDEN");
+
+    if (all[idx].status !== "ACTIVE") return { ok: true };
+
+    all[idx] = { ...all[idx], status: "CANCELLED" };
+    setAllBookings(all);
+    return { ok: true };
+}
+
+export async function findBookingById(bookingId: string) {
+    await new Promise((r) => setTimeout(r, 120));
+    const all = getAllBookings();
+    return all.find((b) => b.id === bookingId) ?? null;
+}
+
+export async function listBookingsForStaff(params?: {
+    q?: string;
+    status?: string;
+}): Promise<StaffBookingRow[]> {
+    await new Promise((r) => setTimeout(r, 150));
+
+    const q = (params?.q ?? "").trim().toLowerCase();
+    const status = (params?.status ?? "").trim().toUpperCase();
+
+    const all = getAllBookings();
+
+    let items = all.map((b) => {
+        const m = materialCards.find((x) => x.id === b.materialId);
+        return {
+            id: b.id,
+            status: b.status,
+            bookingDate: b.bookingDate,
+            bookingDeadline: b.bookingDeadline,
+            readerId: b.readerId,
+            materialId: b.materialId,
+            materialTitle: m?.title ?? "Unknown",
+            libraryId: b.libraryId,
+        } satisfies StaffBookingRow;
+    });
+
+    if (status) items = items.filter((x) => String(x.status).toUpperCase() === status);
+
+    if (q) {
+        items = items.filter((x) => {
+            const hay = `${x.id} ${x.readerId} ${x.materialId} ${x.materialTitle}`.toLowerCase();
+            return hay.includes(q);
+        });
+    }
+
+    items.sort((a, b) => b.bookingDate.localeCompare(a.bookingDate));
+    return items;
+}
+
+export async function cancelBookingByStaff(params: { bookingId: string }) {
+    await new Promise((r) => setTimeout(r, 150));
+
+    const all = getAllBookings();
+    const idx = all.findIndex((b) => b.id === params.bookingId);
+    if (idx === -1) throw new Error("BOOKING_NOT_FOUND");
 
     if (all[idx].status !== "ACTIVE") return { ok: true };
 
