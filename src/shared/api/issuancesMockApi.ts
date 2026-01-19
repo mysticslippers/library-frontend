@@ -10,6 +10,19 @@ type StoredIssuance = {
     renewCount: number;
 };
 
+export type StaffIssuanceRow = {
+    id: string;
+    bookingId: string;
+    status: "OPEN" | "OVERDUE" | "RETURNED";
+    issuanceDate: string;
+    returnDeadline: string;
+    renewCount: number;
+
+    readerId: string;
+    materialId: string;
+    materialTitle: string;
+};
+
 const LS_ISSUANCES = "lib.issuances";
 const LS_BOOKINGS = "lib.bookings";
 
@@ -180,4 +193,77 @@ export async function renewIssuance(params: { readerId: string; issuanceId: stri
 
     setAllIssuances(all);
     return { ok: true };
+}
+
+export async function findIssuanceById(issuanceId: string) {
+    await new Promise((r) => setTimeout(r, 120));
+    const all = getAllIssuances();
+    return all.find((i) => i.id === issuanceId) ?? null;
+}
+
+export async function returnIssuance(params: { issuanceId: string }) {
+    await new Promise((r) => setTimeout(r, 150));
+
+    const all = getAllIssuances();
+    const idx = all.findIndex((i) => i.id === params.issuanceId);
+    if (idx === -1) throw new Error("ISSUANCE_NOT_FOUND");
+
+    const current = all[idx];
+    if (current.status === "RETURNED") return { ok: true };
+
+    all[idx] = { ...current, status: "RETURNED" as const };
+    setAllIssuances(all);
+    return { ok: true };
+}
+
+export async function listIssuancesForStaff(params?: {
+    q?: string;
+    status?: "" | "OPEN" | "OVERDUE" | "RETURNED";
+}): Promise<StaffIssuanceRow[]> {
+    await new Promise((r) => setTimeout(r, 150));
+
+    const q = (params?.q ?? "").trim().toLowerCase();
+    const status = (params?.status ?? "").trim().toUpperCase() as any;
+
+    const bookings = getAllBookings(); // Booking[]
+    const bookingById = new Map<string, Booking>(bookings.map((b) => [b.id, b]));
+
+    const now = new Date().toISOString().slice(0, 10);
+
+    let items: StaffIssuanceRow[] = getAllIssuances().map((i) => {
+        const b = bookingById.get(i.bookingId);
+        const materialId = b?.materialId ?? "unknown";
+        const title = materialCards.find((m) => m.id === materialId)?.title ?? "Unknown";
+
+        const computedStatus =
+            i.status === "RETURNED"
+                ? "RETURNED"
+                : i.returnDeadline < now
+                    ? "OVERDUE"
+                    : "OPEN";
+
+        return {
+            id: i.id,
+            bookingId: i.bookingId,
+            status: computedStatus,
+            issuanceDate: i.issuanceDate,
+            returnDeadline: i.returnDeadline,
+            renewCount: i.renewCount,
+            readerId: b?.readerId ?? "unknown",
+            materialId,
+            materialTitle: title,
+        };
+    });
+
+    if (status) items = items.filter((x) => x.status === status);
+
+    if (q) {
+        items = items.filter((x) => {
+            const hay = `${x.id} ${x.bookingId} ${x.readerId} ${x.materialId} ${x.materialTitle}`.toLowerCase();
+            return hay.includes(q);
+        });
+    }
+
+    items.sort((a, b) => b.issuanceDate.localeCompare(a.issuanceDate));
+    return items;
 }
