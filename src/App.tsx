@@ -15,9 +15,8 @@ import RedirectIfAuth from "./shared/routing/RedirectIfAuth";
 
 import ReaderLayout from "./pages/reader/ReaderLayout";
 
-function LibrarianPlaceholder() {
-    return <div className="p-6 text-xl font-semibold">Librarian area</div>;
-}
+import LibrarianLayout from "./pages/librarian/LibrarianLayout";
+
 function NotFound() {
     return <div className="p-6 text-xl font-semibold">404</div>;
 }
@@ -136,11 +135,11 @@ export default function App() {
                         />
 
                         <Route
-                            path="/librarian"
+                            path="/librarian/*"
                             element={
                                 <RequireAuth>
                                     <RequireRole roles={["LIBRARIAN", "ADMIN"]}>
-                                        <LibrarianPlaceholder />
+                                        <LibrarianLayout />
                                     </RequireRole>
                                 </RequireAuth>
                             }
