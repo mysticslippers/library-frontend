@@ -76,12 +76,13 @@ export type Fine = {
     libraryCardId: string;
     issuanceId: string;
     description: string;
-    dueDate: string; // date
+    dueDate: string;
     paymentDate?: string | null;
     state: FineState;
 };
 
 export type MaterialCardDto = {
+    description: string;
     id: string;
     title: string;
     authors: string;
