@@ -1,15 +1,17 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate } from "react-router-dom";
-import TextField from "../../../shared/ui/TextField";
+import TextField from "@/shared/ui/TextField";
 import { loginSchema, type LoginValues } from "@/shared/lib/validators";
 import { login } from "@/shared/api/authApi";
 import { useDispatch } from "react-redux";
-import { setSession } from "../model/authSlice";
+import { setSession } from "@/features/auth/model/authSlice";
+import { useState } from "react";
 
 export default function LoginForm() {
     const navigate = useNavigate();
     const dispatch = useDispatch();
+    const [showPass, setShowPass] = useState(false);
 
     const {
         register,
@@ -29,7 +31,11 @@ export default function LoginForm() {
     };
 
     return (
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+            <div className="text-sm text-slate-600">
+                Войдите, чтобы продолжить работу с библиотекой.
+            </div>
+
             <TextField
                 label="Email"
                 type="email"
@@ -38,33 +44,49 @@ export default function LoginForm() {
                 error={errors.email?.message}
                 {...register("email")}
             />
+
             <TextField
                 label="Пароль"
-                type="password"
+                type={showPass ? "text" : "password"}
                 autoComplete="current-password"
                 error={errors.password?.message}
                 {...register("password")}
+                rightSlot={
+                    <button
+                        type="button"
+                        onClick={() => setShowPass((v) => !v)}
+                        className="text-sm font-semibold text-brand-700 hover:text-brand-800"
+                    >
+                        {showPass ? "Скрыть" : "Показать"}
+                    </button>
+                }
             />
 
             <button
                 disabled={isSubmitting}
-                className="w-full rounded-xl bg-brand-600 text-white py-2 font-semibold hover:bg-brand-700 disabled:opacity-60"
+                className="w-full rounded-2xl bg-gradient-to-r from-brand-600 to-brand-500 px-4 py-3 font-semibold text-white
+                   shadow-[0_12px_30px_-15px_rgba(124,58,237,0.65)]
+                   hover:brightness-105 active:translate-y-[1px] transition
+                   disabled:opacity-60 disabled:cursor-not-allowed"
                 type="submit"
             >
-                Войти
+                {isSubmitting ? "Входим…" : "Войти"}
             </button>
 
-            <div className="flex justify-between text-sm">
-                <Link className="text-brand-700 hover:underline" to="/auth/forgot-password">
+            <div className="flex items-center justify-between text-sm">
+                <Link className="text-brand-700 hover:text-brand-800 hover:underline" to="/auth/forgot-password">
                     Забыли пароль?
                 </Link>
-                <Link className="text-brand-700 hover:underline" to="/auth/register">
-                    Нет аккаунта? Регистрация
+                <Link className="text-brand-700 hover:text-brand-800 hover:underline" to="/auth/register">
+                    Регистрация
                 </Link>
             </div>
 
-            <div className="mt-2 text-xs text-slate-500">
-                Тестовый библиотекарь: <b>admin@lib.com</b> / <b>Admin1234</b>
+            <div className="rounded-2xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-slate-700">
+                <div className="font-semibold text-slate-900">Тестовый библиотекарь</div>
+                <div className="mt-1">
+                    <span className="font-semibold">admin@lib.com</span> / <span className="font-semibold">Admin1234</span>
+                </div>
             </div>
         </form>
     );
