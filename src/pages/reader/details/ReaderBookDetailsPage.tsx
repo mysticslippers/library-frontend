@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import type { RootState } from "@/app/store";
+import PageHeader from "@/shared/ui/PageHeader";
+import Surface from "@/shared/ui/Surface";
 import { getMaterialCard } from "@/shared/api/libraryMockApi";
 import { createBooking } from "@/shared/api/bookingsMockApi";
 
 export default function ReaderBookDetailsPage() {
     const { id } = useParams();
     const navigate = useNavigate();
+    const location = useLocation();
     const user = useSelector((s: RootState) => s.auth.user);
 
     const [loading, setLoading] = useState(true);
@@ -15,6 +18,7 @@ export default function ReaderBookDetailsPage() {
     const [actionLoading, setActionLoading] = useState(false);
 
     const materialId = useMemo(() => id ?? "", [id]);
+    const backTo = (location.state as any)?.from ?? "/reader/catalog";
 
     useEffect(() => {
         let alive = true;
@@ -51,7 +55,7 @@ export default function ReaderBookDetailsPage() {
         return (
             <div className="p-6">
                 <div className="text-slate-600">Материал не найден.</div>
-                <Link className="text-brand-700 hover:underline" to="/reader/catalog">
+                <Link className="text-brand-700 hover:underline" to={backTo}>
                     Назад к каталогу
                 </Link>
             </div>
@@ -60,37 +64,50 @@ export default function ReaderBookDetailsPage() {
 
     return (
         <div className="p-6">
-            <div className="flex items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-brand-700">{item.title}</h1>
-                    <div className="mt-1 text-slate-600">{item.authors}</div>
-                    <div className="mt-1 text-sm text-slate-500">
-                        {(item.genre ?? "—")}{item.year ? ` · ${item.year}` : ""}
-                    </div>
+            <PageHeader
+                title={item.title}
+                subtitle={`${item.authors}${item.year ? ` · ${item.year}` : ""}${item.genre ? ` · ${item.genre}` : ""}`}
+                actionLabel="К каталогу"
+                actionTo={backTo}
+            />
+
+            <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div className="lg:col-span-2">
+                    <Surface>
+                        <div className="text-sm font-medium text-slate-600">Описание</div>
+                        <div className="mt-2 text-slate-700">{item.description ?? "Описание не задано."}</div>
+                    </Surface>
                 </div>
 
-                <Link className="rounded-xl border px-3 py-1.5 hover:bg-brand-50 hover:border-brand-200" to="/reader/catalog">
-                    К каталогу
-                </Link>
-            </div>
+                <div className="lg:col-span-1">
+                    <Surface>
+                        <div className="text-sm font-medium text-slate-600">Доступность</div>
+                        <div className="mt-2 text-2xl font-bold text-slate-900">
+                            {canBook ? (
+                                <>
+                                    <span className="text-emerald-700">{item.availableCopies}</span>
+                                    <span className="text-slate-600 font-semibold"> / {item.totalCopies}</span>
+                                </>
+                            ) : (
+                                <>
+                                    <span className="text-red-600">Нет</span>
+                                    <span className="text-slate-600 font-semibold"> / {item.totalCopies}</span>
+                                </>
+                            )}
+                        </div>
 
-            <div className="mt-6 rounded-2xl border p-4">
-                <div className="text-sm text-slate-600">Доступность</div>
-                <div className="mt-1 text-lg font-semibold">
-                    {canBook ? `Доступно: ${item.availableCopies}` : "Нет в наличии"}
-                    <span className="text-slate-500"> / {item.totalCopies}</span>
-                </div>
+                        <button
+                            disabled={!canBook || actionLoading}
+                            onClick={onBook}
+                            className="mt-4 w-full rounded-2xl bg-gradient-to-r from-brand-600 to-brand-500 px-4 py-3 font-semibold text-white
+                         shadow-[0_12px_30px_-15px_rgba(124,58,237,0.65)]
+                         hover:brightness-105 active:translate-y-[1px] transition disabled:opacity-60"
+                        >
+                            {actionLoading ? "Бронируем…" : "Забронировать"}
+                        </button>
 
-                <button
-                    disabled={!canBook || actionLoading}
-                    className="mt-4 rounded-xl bg-brand-600 text-white px-4 py-2 font-semibold hover:bg-brand-700 disabled:opacity-60"
-                    onClick={onBook}
-                >
-                    {actionLoading ? "Бронируем…" : "Забронировать"}
-                </button>
-
-                <div className="mt-3 text-sm text-slate-500">
-                    Бронь действует до <b>3 дней</b> (для MVP).
+                        {!canBook ? <div className="mt-2 text-sm text-slate-600">Сейчас нет доступных копий.</div> : null}
+                    </Surface>
                 </div>
             </div>
         </div>
