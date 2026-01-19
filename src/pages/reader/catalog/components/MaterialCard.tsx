@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import type { MaterialCardDto } from "@/shared/types/library";
 
-export default function MaterialCard({ item }: { item: MaterialCardDto }) {
+export default function MaterialCard({ item, from }: { item: MaterialCardDto; from: string }) {
     const available = item.availableCopies ?? 0;
     const isAvailable = available > 0;
 
@@ -13,12 +13,13 @@ export default function MaterialCard({ item }: { item: MaterialCardDto }) {
                 </div>
 
                 <div className="min-w-0 flex-1">
-                    <Link to={`/reader/books/${item.id}`} className="font-semibold hover:text-brand-700">
+                    <Link to={`/reader/books/${item.id}`} state={{ from }} className="font-semibold hover:text-brand-700">
                         {item.title}
                     </Link>
                     <div className="mt-1 text-sm text-slate-600 truncate">{item.authors}</div>
                     <div className="mt-1 text-xs text-slate-500">
-                        {(item.genre ?? "—")}{item.year ? ` · ${item.year}` : ""}
+                        {(item.genre ?? "—")}
+                        {item.year ? ` · ${item.year}` : ""}
                     </div>
                 </div>
             </div>
@@ -33,6 +34,7 @@ export default function MaterialCard({ item }: { item: MaterialCardDto }) {
 
                 <Link
                     to={`/reader/books/${item.id}`}
+                    state={{ from }}
                     className="rounded-xl bg-brand-600 text-white px-3 py-1.5 text-sm font-semibold hover:bg-brand-700"
                 >
                     Подробнее
