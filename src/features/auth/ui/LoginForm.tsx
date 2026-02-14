@@ -22,11 +22,11 @@ export default function LoginForm() {
 
     const onSubmit = async (values: LoginValues) => {
         try {
-            const res = login(values.email, values.password);
+            const res = await login(values.email, values.password);
             dispatch(setSession(res));
             navigate(res.user.role === "LIBRARIAN" ? "/librarian" : "/reader", { replace: true });
-        } catch (e) {
-            setError("password", { message: "Неверный email или пароль" });
+        } catch (e: any) {
+            setError("password", { message: e?.message || "Ошибка входа" });
         }
     };
 
@@ -80,13 +80,6 @@ export default function LoginForm() {
                 <Link className="text-brand-700 hover:text-brand-800 hover:underline" to="/auth/register">
                     Регистрация
                 </Link>
-            </div>
-
-            <div className="rounded-2xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-slate-700">
-                <div className="font-semibold text-slate-900">Тестовый библиотекарь</div>
-                <div className="mt-1">
-                    <span className="font-semibold">admin@lib.com</span> / <span className="font-semibold">Admin1234</span>
-                </div>
             </div>
         </form>
     );
