@@ -1,173 +1,196 @@
 import type { AuthUser, Role } from "../types/library";
 
-type StoredUser = {
-    id: string;
-    identifier: string;
-    password: string;
-    role: Role;
-    createdAt: string;
-    personId?: string;
-    libraryId?: string;
-};
-
-type Session = { token: string; userId: string; createdAt: string };
-
-type ResetTokenRecord = {
-    token: string;
-    identifier: string;
-    expiresAt: number;
-};
-
-const LS_USERS = "lib.users";
 const LS_SESSION = "lib.session";
-const LS_RESET_TOKENS = "lib.resetTokens";
 
-function uuid() {
-    return crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2);
+const API_URL = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8080";
+
+type ApiResponse<T = any> = {
+    status: "SUCCESS" | "ERROR";
+    message?: string;
+    data?: T | null;
+    errors?: string[] | null;
+};
+
+function normalizeEmail(email: string) {
+    return email.trim().toLowerCase();
 }
 
-function readJson<T>(key: string, fallback: T): T {
+function extractToken(payload: any): string | null {
+    const p = payload as ApiResponse<{ token?: string }> | any;
+    return typeof p?.data?.token === "string" ? p.data.token : null;
+}
+
+function base64UrlDecode(input: string): string {
+    const pad = "=".repeat((4 - (input.length % 4)) % 4);
+    const base64 = (input + pad).replace(/-/g, "+").replace(/_/g, "/");
+    const binary = atob(base64);
+    const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+}
+
+type JwtPayload = {
+    id?: string | number;
+    email?: string;
+    role?: string;
+    sub?: string;
+    exp?: number;
+    iat?: number;
+    [k: string]: unknown;
+};
+
+function decodeJwt(token: string): JwtPayload | null {
     try {
-        const raw = localStorage.getItem(key);
-        if (!raw) return fallback;
-        return JSON.parse(raw) as T;
+        const parts = token.split(".");
+        if (parts.length < 2) return null;
+        const json = base64UrlDecode(parts[1]);
+        return JSON.parse(json) as JwtPayload;
     } catch {
-        return fallback;
+        return null;
     }
 }
 
-function writeJson<T>(key: string, value: T) {
-    localStorage.setItem(key, JSON.stringify(value));
+function mapBackendRoleToFrontend(role?: string): Role {
+    if (!role) return "READER";
+    if (role === "LIBRARIAN") return "LIBRARIAN";
+    if (role === "USER") return "READER";
+    return "READER";
 }
 
-function getUsers(): StoredUser[] {
-    return readJson<StoredUser[]>(LS_USERS, []);
-}
+function toAuthUserFromJwt(token: string): AuthUser | null {
+    const payload = decodeJwt(token);
+    if (!payload) return null;
 
-function setUsers(users: StoredUser[]) {
-    writeJson(LS_USERS, users);
-}
+    const backendRole = String(payload.role ?? "");
+    const role = mapBackendRoleToFrontend(backendRole);
 
-function getResetTokens(): ResetTokenRecord[] {
-    return readJson<ResetTokenRecord[]>(LS_RESET_TOKENS, []);
-}
+    const identifier = normalizeEmail(String(payload.email ?? payload.sub ?? ""));
+    if (!identifier) return null;
 
-function setResetTokens(tokens: ResetTokenRecord[]) {
-    writeJson(LS_RESET_TOKENS, tokens);
-}
+    const idRaw = payload.id;
+    const id =
+        typeof idRaw === "string"
+            ? idRaw
+            : typeof idRaw === "number"
+                ? String(idRaw)
+                : "";
 
-function normalizeIdentifier(identifier: string) {
-    return identifier.trim().toLowerCase();
-}
+    const safeId = id || `email:${identifier}`;
 
-function toAuthUser(u: StoredUser): AuthUser {
     return {
-        id: u.id,
-        role: u.role,
-        identifier: u.identifier,
-        personId: u.personId,
-        libraryId: u.libraryId,
+        id: safeId,
+        role,
+        identifier,
     };
 }
 
-export function ensureSeedUsers() {
-    const users = getUsers();
-    const adminIdentifier = "admin@lib.com";
-    const exists = users.some((u) => normalizeIdentifier(u.identifier) === normalizeIdentifier(adminIdentifier));
-    if (exists) return;
+async function http<T>(path: string, init?: RequestInit): Promise<T> {
+    const res = await fetch(`${API_URL}${path}`, {
+        ...init,
+        headers: {
+            "Content-Type": "application/json",
+            ...(init?.headers ?? {}),
+        },
+    });
 
-    const admin: StoredUser = {
-        id: uuid(),
-        identifier: normalizeIdentifier(adminIdentifier),
-        password: "Admin1234",
-        role: "LIBRARIAN",
-        createdAt: new Date().toISOString(),
-        libraryId: "1",
-    };
+    const contentType = res.headers.get("content-type") ?? "";
+    const isJson = contentType.includes("application/json");
 
-    setUsers([admin, ...users]);
+    const body = isJson
+        ? await res.json().catch(() => null)
+        : await res.text().catch(() => null);
+
+    if (!res.ok) {
+        // Под твой GlobalExceptionHandler: ApiResponse.error(message, errors)
+        const api = body as ApiResponse | null;
+
+        const msg =
+            (api?.errors && api.errors.length ? api.errors[0] : null) ??
+            api?.message ??
+            `HTTP ${res.status}`;
+
+        const err: any = new Error(msg);
+        err.status = res.status;
+        err.body = body;
+        throw err;
+    }
+
+    return body as T;
 }
 
 export function getCurrentSession(): { token: string; user: AuthUser } | null {
-    const session = readJson<Session | null>(LS_SESSION, null);
-    if (!session) return null;
+    try {
+        const raw = localStorage.getItem(LS_SESSION);
+        if (!raw) return null;
 
-    const user = getUsers().find((u) => u.id === session.userId);
-    if (!user) return null;
+        const parsed = JSON.parse(raw) as any;
+        const token = typeof parsed === "string" ? parsed : parsed?.token;
 
-    return { token: session.token, user: toAuthUser(user) };
+        if (!token || typeof token !== "string") return null;
+
+        const payload = decodeJwt(token);
+        if (!payload) return null;
+
+        // истёкший токен -> сессии нет
+        if (payload.exp && Date.now() / 1000 >= payload.exp) return null;
+
+        const user = toAuthUserFromJwt(token);
+        if (!user) return null;
+
+        return { token, user };
+    } catch {
+        return null;
+    }
 }
 
 export function logout() {
     localStorage.removeItem(LS_SESSION);
 }
 
+export async function registerReader(email: string, password: string) {
+    const payload = await http<ApiResponse<{ token: string }>>("/auth/register", {
+        method: "POST",
+        body: JSON.stringify({
+            email: normalizeEmail(email),
+            password,
+            role: "USER",
+        }),
+    });
 
-export function registerReader(email: string, password: string) {
-    const users = getUsers();
-    const identifier = normalizeIdentifier(email);
+    const token = extractToken(payload);
+    if (!token) throw new Error("TOKEN_NOT_FOUND");
 
-    if (users.some((u) => normalizeIdentifier(u.identifier) === identifier)) {
-        throw new Error("IDENTIFIER_ALREADY_EXISTS");
-    }
+    localStorage.setItem(LS_SESSION, JSON.stringify({ token }));
 
-    const user: StoredUser = {
-        id: uuid(),
-        identifier,
-        password,
-        role: "READER",
-        createdAt: new Date().toISOString(),
-    };
+    const user = toAuthUserFromJwt(token);
+    if (!user) throw new Error("INVALID_TOKEN");
 
-    setUsers([user, ...users]);
-    return toAuthUser(user);
+    return { token, user };
 }
 
-export function login(identifierRaw: string, password: string) {
-    const users = getUsers();
-    const identifier = normalizeIdentifier(identifierRaw);
+export async function login(email: string, password: string) {
+    const payload = await http<ApiResponse<{ token: string }>>("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({
+            email: normalizeEmail(email),
+            password,
+        }),
+    });
 
-    const user = users.find((u) => normalizeIdentifier(u.identifier) === identifier);
+    const token = extractToken(payload);
+    if (!token) throw new Error("TOKEN_NOT_FOUND");
 
-    if (!user || user.password !== password) {
-        throw new Error("INVALID_CREDENTIALS");
-    }
+    localStorage.setItem(LS_SESSION, JSON.stringify({ token }));
 
-    const session: Session = { token: uuid(), userId: user.id, createdAt: new Date().toISOString() };
-    writeJson(LS_SESSION, session);
+    const user = toAuthUserFromJwt(token);
+    if (!user) throw new Error("INVALID_TOKEN");
 
-    return { token: session.token, user: toAuthUser(user) };
+    return { token, user };
 }
 
-export function requestPasswordReset(emailRaw: string) {
-    const users = getUsers();
-    const identifier = normalizeIdentifier(emailRaw);
-    const userExists = users.some((u) => normalizeIdentifier(u.identifier) === identifier);
-
-    const token = uuid();
-    const expiresAt = Date.now() + 15 * 60 * 1000;
-
-    if (userExists) {
-        const tokens = getResetTokens().filter((t) => t.expiresAt > Date.now());
-        tokens.push({ token, identifier, expiresAt });
-        setResetTokens(tokens);
-    }
-
-    return { ok: true, token: userExists ? token : null };
+export async function requestPasswordReset(_email: string) {
+    throw new Error("NOT_IMPLEMENTED");
 }
 
-export function resetPassword(token: string, newPassword: string) {
-    const tokens = getResetTokens().filter((t) => t.expiresAt > Date.now());
-    const record = tokens.find((t) => t.token === token);
-    if (!record) throw new Error("INVALID_OR_EXPIRED_TOKEN");
-
-    const users = getUsers();
-    const idx = users.findIndex((u) => normalizeIdentifier(u.identifier) === normalizeIdentifier(record.identifier));
-    if (idx === -1) throw new Error("INVALID_OR_EXPIRED_TOKEN");
-
-    users[idx] = { ...users[idx], password: newPassword };
-    setUsers(users);
-
-    setResetTokens(tokens.filter((t) => t.token !== token));
-    return { ok: true };
+export async function resetPassword(_token: string, _newPassword: string) {
+    throw new Error("NOT_IMPLEMENTED");
 }
