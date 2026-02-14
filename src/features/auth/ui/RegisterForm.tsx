@@ -4,9 +4,12 @@ import { Link, useNavigate } from "react-router-dom";
 import TextField from "../../../shared/ui/TextField";
 import { registerSchema, type RegisterValues } from "@/shared/lib/validators";
 import { registerReader } from "@/shared/api/authApi";
+import { useDispatch } from "react-redux";
+import { setSession } from "@/features/auth/model/authSlice";
 
 export default function RegisterForm() {
     const navigate = useNavigate();
+    const dispatch = useDispatch();
 
     const {
         register,
@@ -17,10 +20,11 @@ export default function RegisterForm() {
 
     const onSubmit = async (values: RegisterValues) => {
         try {
-            registerReader(values.email, values.password);
-            navigate("/auth/login", { replace: true });
-        } catch (e) {
-            setError("email", { message: "Этот email уже зарегистрирован" });
+            const res = await registerReader(values.email, values.password);
+            dispatch(setSession(res));
+            navigate("/reader", { replace: true });
+        } catch (e: any) {
+            setError("email", { message: e?.message || "Не удалось зарегистрироваться" });
         }
     };
 
