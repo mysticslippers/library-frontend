@@ -1,8 +1,8 @@
 import { BrowserRouter, Navigate, Route, Routes, Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import type { RootState } from "./app/store";
-import { clearSession } from "./features/auth/model/authSlice";
-import { logout as logoutApi } from "./shared/api/authApi";
+import { clearSession, setSession } from "./features/auth/model/authSlice";
+import { getCurrentSession, logout as logoutApi } from "./shared/api/authApi";
 
 import LoginPage from "./pages/auth/LoginPage";
 import RegisterPage from "./pages/auth/RegisterPage";
@@ -14,11 +14,25 @@ import RequireRole from "./shared/routing/RequireRole";
 import RedirectIfAuth from "./shared/routing/RedirectIfAuth";
 
 import ReaderLayout from "./pages/reader/ReaderLayout";
-
 import LibrarianLayout from "./pages/librarian/LibrarianLayout";
+import { useEffect } from "react";
 
 function NotFound() {
     return <div className="p-6 text-xl font-semibold">404</div>;
+}
+
+function AuthBootstrap() {
+    const dispatch = useDispatch();
+    const token = useSelector((s: RootState) => s.auth.token);
+
+    useEffect(() => {
+        if (token) return;
+
+        const session = getCurrentSession();
+        if (session) dispatch(setSession(session));
+    }, [dispatch, token]);
+
+    return null;
 }
 
 function RootRedirect() {
@@ -56,8 +70,8 @@ function TopBar() {
                             </Link>
 
                             <span className="hidden sm:inline text-slate-500">
-                {user.identifier} · {user.role}
-              </span>
+                                {user.identifier} · {user.role}
+                            </span>
 
                             <button
                                 onClick={onLogout}
@@ -86,6 +100,7 @@ export default function App() {
     return (
         <BrowserRouter>
             <div className="min-h-screen bg-white text-slate-900">
+                <AuthBootstrap />
                 <TopBar />
 
                 <main className="mx-auto max-w-6xl px-4">
