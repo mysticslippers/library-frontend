@@ -220,8 +220,7 @@ export async function getCatalog(query: CatalogQuery): Promise<MaterialCardDto[]
             const y = Number(String(x.year ?? ""));
             if (!Number.isFinite(y)) return false;
             if (yearMin !== null && y < yearMin) return false;
-            if (yearMax !== null && y > yearMax) return false;
-            return true;
+            return !(yearMax !== null && y > yearMax);
         });
     }
 
