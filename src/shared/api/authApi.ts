@@ -1,7 +1,6 @@
 import type { AuthUser, Role } from "../types/library";
 
 const LS_SESSION = "lib.session";
-
 const API_URL = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8080";
 
 type ApiResponse<T = any> = {
@@ -84,7 +83,7 @@ function toAuthUserFromJwt(token: string): AuthUser | null {
 }
 
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
-    const res = await fetch(`${API_URL}${path}`, {
+    const res = await fetch(`${API_URL}${path}` as string, {
         ...init,
         headers: {
             "Content-Type": "application/json",
@@ -95,14 +94,10 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
     const contentType = res.headers.get("content-type") ?? "";
     const isJson = contentType.includes("application/json");
 
-    const body = isJson
-        ? await res.json().catch(() => null)
-        : await res.text().catch(() => null);
+    const body = isJson ? await res.json().catch(() => null) : await res.text().catch(() => null);
 
     if (!res.ok) {
-        // Под твой GlobalExceptionHandler: ApiResponse.error(message, errors)
         const api = body as ApiResponse | null;
-
         const msg =
             (api?.errors && api.errors.length ? api.errors[0] : null) ??
             api?.message ??
@@ -124,13 +119,11 @@ export function getCurrentSession(): { token: string; user: AuthUser } | null {
 
         const parsed = JSON.parse(raw) as any;
         const token = typeof parsed === "string" ? parsed : parsed?.token;
-
         if (!token || typeof token !== "string") return null;
 
         const payload = decodeJwt(token);
         if (!payload) return null;
 
-        // истёкший токен -> сессии нет
         if (payload.exp && Date.now() / 1000 >= payload.exp) return null;
 
         const user = toAuthUserFromJwt(token);
@@ -187,10 +180,20 @@ export async function login(email: string, password: string) {
     return { token, user };
 }
 
-export async function requestPasswordReset(_email: string) {
-    throw new Error("NOT_IMPLEMENTED");
+export async function requestPasswordReset(email: string) {
+    await http<ApiResponse<null>>("/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify({ email: normalizeEmail(email) }),
+    });
+
+    return { ok: true };
 }
 
-export async function resetPassword(_token: string, _newPassword: string) {
-    throw new Error("NOT_IMPLEMENTED");
+export async function resetPassword(token: string, newPassword: string) {
+    await http<ApiResponse<null>>("/auth/reset-password", {
+        method: "POST",
+        body: JSON.stringify({ token, newPassword }),
+    });
+
+    return { ok: true };
 }
