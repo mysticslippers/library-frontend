@@ -1,5 +1,28 @@
 import type { Booking, BookingStatus, BookingViewDto } from "../types/library";
-import { materialCards } from "../fixtures/materials";
+import { getCurrentSession } from "./authApi";
+import { getMaterialCard } from "./libraryMockApi";
+
+const API_URL = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8080";
+
+type ApiResponse<T = any> = {
+    status: "SUCCESS" | "ERROR";
+    message?: string;
+    data?: T | null;
+    errors?: string[] | null;
+};
+
+type BookLoanDTO = {
+    id: number;
+    userId: number;
+    bookId: number;
+    libraryId: number;
+    status: "PENDING" | "RESERVED" | "ISSUED" | "OVERDUE" | "RETURNED" | "CANCELLED";
+    reservedAt?: string | null;
+    reservedUntil?: string | null;
+    issuedAt?: string | null;
+    dueAt?: string | null;
+    returnedAt?: string | null;
+};
 
 export type StaffBookingRow = {
     id: string;
@@ -14,187 +37,149 @@ export type StaffBookingRow = {
     libraryId: string;
 };
 
-const LS_BOOKINGS = "lib.bookings";
-
-function uuid() {
-    return crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2);
+function authHeader(): Record<string, string> {
+    const s = getCurrentSession();
+    return s?.token ? { Authorization: `Bearer ${s.token}` } : {};
 }
 
-function readJson<T>(key: string, fallback: T): T {
-    try {
-        const raw = localStorage.getItem(key);
-        if (!raw) return fallback;
-        return JSON.parse(raw) as T;
-    } catch {
-        return fallback;
+async function http<T>(path: string, init?: RequestInit): Promise<T> {
+    const res = await fetch(`${API_URL}${path}`, {
+        ...init,
+        headers: {
+            "Content-Type": "application/json",
+            ...(init?.headers ?? {}),
+            ...authHeader(),
+        },
+    });
+
+    const body = (await res.json().catch(() => null)) as ApiResponse<T> | null;
+
+    if (!res.ok) {
+        const msg =
+            (body?.errors && body.errors.length ? body.errors[0] : null) ??
+            body?.message ??
+            `HTTP ${res.status}`;
+        const err: any = new Error(msg);
+        err.status = res.status;
+        err.body = body;
+        throw err;
     }
+
+    return (body?.data as T) ?? (null as any);
 }
 
-function writeJson<T>(key: string, value: T) {
-    localStorage.setItem(key, JSON.stringify(value));
+function toISODate(x?: string | null): string {
+    if (!x) return new Date().toISOString().slice(0, 10);
+    return String(x).slice(0, 10);
 }
 
-function todayDateISO() {
-    return new Date().toISOString().slice(0, 10);
+function mapLoanToBookingStatus(s: BookLoanDTO["status"]): BookingStatus {
+    if (s === "CANCELLED") return "CANCELLED";
+    if (s === "PENDING" || s === "RESERVED") return "ACTIVE";
+    return "COMPLETED";
 }
 
-function addDaysISO(days: number) {
-    const d = new Date();
-    d.setDate(d.getDate() + days);
-    return d.toISOString().slice(0, 10);
+export function getActiveBookingsCountByMaterial(_materialId: string): number {
+    return 0;
 }
 
-function getAllBookings(): Booking[] {
-    return readJson<Booking[]>(LS_BOOKINGS, []);
-}
+export async function listMyBookings(_readerId: string): Promise<BookingViewDto[]> {
+    const loans = await http<BookLoanDTO[]>(`/loans/my`);
 
-function setAllBookings(b: Booking[]) {
-    writeJson(LS_BOOKINGS, b);
-}
+    const bookings = loans
+        .filter((l) => l.status === "PENDING" || l.status === "RESERVED" || l.status === "CANCELLED")
+        .sort((a, b) => (b.reservedAt ?? "").localeCompare(a.reservedAt ?? ""));
 
-function isActive(status: BookingStatus) {
-    return status === "ACTIVE";
-}
-
-export function getActiveBookingsCountByMaterial(materialId: string): number {
-    const all = getAllBookings();
-    return all.filter((b) => b.materialId === materialId && isActive(b.status)).length;
-}
-
-export async function listMyBookings(readerId: string): Promise<BookingViewDto[]> {
-    await new Promise((r) => setTimeout(r, 150));
-
-    const all = getAllBookings()
-        .filter((b) => b.readerId === readerId)
-        .sort((a, b) => b.bookingDate.localeCompare(a.bookingDate));
-
-    return all.map((b) => {
-        const m = materialCards.find((x) => x.id === b.materialId);
-        return {
-            id: b.id,
-            status: b.status,
-            bookingDate: b.bookingDate,
-            bookingDeadline: b.bookingDeadline,
-            libraryId: b.libraryId,
+    const result: BookingViewDto[] = [];
+    for (const l of bookings) {
+        const m = await getMaterialCard(String(l.bookId));
+        result.push({
+            id: String(l.id),
+            status: mapLoanToBookingStatus(l.status),
+            bookingDate: toISODate(l.reservedAt),
+            bookingDeadline: toISODate(l.reservedUntil),
+            libraryId: String(l.libraryId),
             material: {
-                id: b.materialId,
+                id: String(l.bookId),
                 title: m?.title ?? "Unknown",
                 isbn: null,
             },
-        };
-    });
+        });
+    }
+    return result;
 }
 
-export async function createBooking(params: {
-    readerId: string;
-    materialId: string;
-    libraryId?: string;
-}): Promise<Booking> {
-    await new Promise((r) => setTimeout(r, 200));
+export async function createBooking(params: { readerId: string; materialId: string; libraryId?: string }): Promise<Booking> {
+    void params.readerId;
 
-    const { readerId, materialId } = params;
-    const libraryId = params.libraryId ?? "1";
+    const payload = await http<BookLoanDTO>(`/loans/reserve`, {
+        method: "POST",
+        body: JSON.stringify({
+            bookId: Number(params.materialId),
+            libraryId: Number(params.libraryId ?? "1"),
+        }),
+    });
 
-    const m = materialCards.find((x) => x.id === materialId);
-    if (!m) throw new Error("MATERIAL_NOT_FOUND");
-
-    const all = getAllBookings();
-
-    const already = all.some(
-        (b) => b.readerId === readerId && b.materialId === materialId && isActive(b.status)
-    );
-    if (already) throw new Error("ALREADY_BOOKED");
-
-    const activeCount = getActiveBookingsCountByMaterial(materialId);
-    const available = (m.totalCopies ?? 0) - activeCount;
-
-    if (available <= 0) throw new Error("NOT_AVAILABLE");
-
-    const booking: Booking = {
-        id: uuid(),
-        readerId,
+    return {
+        id: String(payload.id),
+        readerId: String(payload.userId),
         librarianId: null,
-        libraryId,
-        materialId,
-        bookingDate: todayDateISO(),
-        bookingDeadline: addDaysISO(3),
-        status: "ACTIVE",
+        libraryId: String(payload.libraryId),
+        materialId: String(payload.bookId),
+        bookingDate: toISODate(payload.reservedAt),
+        bookingDeadline: toISODate(payload.reservedUntil),
+        status: mapLoanToBookingStatus(payload.status),
     };
-
-    setAllBookings([booking, ...all]);
-    return booking;
 }
 
 export async function cancelBooking(params: { readerId: string; bookingId: string }) {
-    await new Promise((r) => setTimeout(r, 150));
-
-    const all = getAllBookings();
-    const idx = all.findIndex((b) => b.id === params.bookingId);
-
-    if (idx === -1) throw new Error("BOOKING_NOT_FOUND");
-    if (all[idx].readerId !== params.readerId) throw new Error("FORBIDDEN");
-
-    if (all[idx].status !== "ACTIVE") return { ok: true };
-
-    all[idx] = { ...all[idx], status: "CANCELLED" };
-    setAllBookings(all);
+    void params.readerId;
+    await http(`/loans/${params.bookingId}/cancel`, { method: "POST" });
     return { ok: true };
 }
 
 export async function findBookingById(bookingId: string) {
-    await new Promise((r) => setTimeout(r, 120));
-    const all = getAllBookings();
-    return all.find((b) => b.id === bookingId) ?? null;
+    const loan = await http<BookLoanDTO>(`/loans/${bookingId}`);
+    return {
+        id: String(loan.id),
+        readerId: String(loan.userId),
+        librarianId: null,
+        libraryId: String(loan.libraryId),
+        materialId: String(loan.bookId),
+        bookingDate: toISODate(loan.reservedAt),
+        bookingDeadline: toISODate(loan.reservedUntil),
+        status: mapLoanToBookingStatus(loan.status),
+    } as Booking;
 }
 
-export async function listBookingsForStaff(params?: {
-    q?: string;
-    status?: string;
-}): Promise<StaffBookingRow[]> {
-    await new Promise((r) => setTimeout(r, 150));
+export async function listBookingsForStaff(params?: { q?: string; status?: string }): Promise<StaffBookingRow[]> {
+    const qs = new URLSearchParams();
+    if (params?.q) qs.set("q", params.q);
+    if (params?.status) qs.set("status", params.status);
 
-    const q = (params?.q ?? "").trim().toLowerCase();
-    const status = (params?.status ?? "").trim().toUpperCase();
+    const loans = await http<BookLoanDTO[]>(`/loans?${qs.toString()}`);
 
-    const all = getAllBookings();
+    const bookings = loans.filter((l) => l.status === "PENDING" || l.status === "RESERVED" || l.status === "CANCELLED");
 
-    let items = all.map((b) => {
-        const m = materialCards.find((x) => x.id === b.materialId);
-        return {
-            id: b.id,
-            status: b.status,
-            bookingDate: b.bookingDate,
-            bookingDeadline: b.bookingDeadline,
-            readerId: b.readerId,
-            materialId: b.materialId,
+    const rows: StaffBookingRow[] = [];
+    for (const l of bookings) {
+        const m = await getMaterialCard(String(l.bookId));
+        rows.push({
+            id: String(l.id),
+            status: mapLoanToBookingStatus(l.status),
+            bookingDate: toISODate(l.reservedAt),
+            bookingDeadline: toISODate(l.reservedUntil),
+            readerId: String(l.userId),
+            materialId: String(l.bookId),
             materialTitle: m?.title ?? "Unknown",
-            libraryId: b.libraryId,
-        } satisfies StaffBookingRow;
-    });
-
-    if (status) items = items.filter((x) => String(x.status).toUpperCase() === status);
-
-    if (q) {
-        items = items.filter((x) => {
-            const hay = `${x.id} ${x.readerId} ${x.materialId} ${x.materialTitle}`.toLowerCase();
-            return hay.includes(q);
+            libraryId: String(l.libraryId),
         });
     }
-
-    items.sort((a, b) => b.bookingDate.localeCompare(a.bookingDate));
-    return items;
+    rows.sort((a, b) => b.bookingDate.localeCompare(a.bookingDate));
+    return rows;
 }
 
 export async function cancelBookingByStaff(params: { bookingId: string }) {
-    await new Promise((r) => setTimeout(r, 150));
-
-    const all = getAllBookings();
-    const idx = all.findIndex((b) => b.id === params.bookingId);
-    if (idx === -1) throw new Error("BOOKING_NOT_FOUND");
-
-    if (all[idx].status !== "ACTIVE") return { ok: true };
-
-    all[idx] = { ...all[idx], status: "CANCELLED" };
-    setAllBookings(all);
+    await http(`/loans/${params.bookingId}/cancel`, { method: "POST" });
     return { ok: true };
 }
