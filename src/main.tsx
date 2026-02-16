@@ -4,11 +4,9 @@ import App from "./App";
 import "./tailwind.css";
 import "./index.scss";
 import { StoreProvider } from "./app/providers/StoreProvider";
-import { ensureSeedUsers, getCurrentSession } from "./shared/api/authApi";
+import { getCurrentSession } from "./shared/api/authApi";
 import { store } from "./app/store";
 import { setSession } from "./features/auth/model/authSlice";
-
-ensureSeedUsers();
 
 const session = getCurrentSession();
 if (session) store.dispatch(setSession(session));
