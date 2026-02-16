@@ -1,13 +1,27 @@
-import type { Booking, BookingViewDto, IssuanceStatus } from "../types/library";
-import { materialCards } from "../fixtures/materials";
+import type { BookingViewDto, IssuanceStatus } from "../types/library";
+import { getCurrentSession } from "./authApi";
+import { getMaterialCard } from "./libraryMockApi";
 
-type StoredIssuance = {
-    id: string;
-    bookingId: string;
-    issuanceDate: string;
-    status: IssuanceStatus;
-    returnDeadline: string;
-    renewCount: number;
+const API_URL = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8080";
+
+type ApiResponse<T = any> = {
+    status: "SUCCESS" | "ERROR";
+    message?: string;
+    data?: T | null;
+    errors?: string[] | null;
+};
+
+type BookLoanDTO = {
+    id: number;
+    userId: number;
+    bookId: number;
+    libraryId: number;
+    status: "PENDING" | "RESERVED" | "ISSUED" | "OVERDUE" | "RETURNED" | "CANCELLED";
+    reservedAt?: string | null;
+    reservedUntil?: string | null;
+    issuedAt?: string | null;
+    dueAt?: string | null;
+    returnedAt?: string | null;
 };
 
 export type StaffIssuanceRow = {
@@ -23,66 +37,46 @@ export type StaffIssuanceRow = {
     materialTitle: string;
 };
 
-const LS_ISSUANCES = "lib.issuances";
-const LS_BOOKINGS = "lib.bookings";
-
-function uuid() {
-    return crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2);
+function authHeader(): Record<string, string> {
+    const s = getCurrentSession();
+    return s?.token ? { Authorization: `Bearer ${s.token}` } : {};
 }
 
-function readJson<T>(key: string, fallback: T): T {
-    try {
-        const raw = localStorage.getItem(key);
-        if (!raw) return fallback;
-        return JSON.parse(raw) as T;
-    } catch {
-        return fallback;
+async function http<T>(path: string, init?: RequestInit): Promise<T> {
+    const res = await fetch(`${API_URL}${path}`, {
+        ...init,
+        headers: {
+            "Content-Type": "application/json",
+            ...(init?.headers ?? {}),
+            ...authHeader(),
+        },
+    });
+
+    const body = (await res.json().catch(() => null)) as ApiResponse<T> | null;
+
+    if (!res.ok) {
+        const msg =
+            (body?.errors && body.errors.length ? body.errors[0] : null) ??
+            body?.message ??
+            `HTTP ${res.status}`;
+        const err: any = new Error(msg);
+        err.status = res.status;
+        err.body = body;
+        throw err;
     }
+
+    return (body?.data as T) ?? (null as any);
 }
 
-function writeJson<T>(key: string, value: T) {
-    localStorage.setItem(key, JSON.stringify(value));
+function toISODate(x?: string | null): string {
+    if (!x) return new Date().toISOString().slice(0, 10);
+    return String(x).slice(0, 10);
 }
 
-function todayISO() {
-    return new Date().toISOString().slice(0, 10);
-}
-
-function addDaysISO(fromISO: string, days: number) {
-    const d = new Date(fromISO + "T00:00:00");
-    d.setDate(d.getDate() + days);
-    return d.toISOString().slice(0, 10);
-}
-
-function getAllBookings(): Booking[] {
-    return readJson<Booking[]>(LS_BOOKINGS, []);
-}
-
-function setAllBookings(b: Booking[]) {
-    writeJson(LS_BOOKINGS, b);
-}
-
-function getAllIssuances(): StoredIssuance[] {
-    return readJson<StoredIssuance[]>(LS_ISSUANCES, []);
-}
-
-function setAllIssuances(x: StoredIssuance[]) {
-    writeJson(LS_ISSUANCES, x);
-}
-
-function isOpen(status: IssuanceStatus) {
-    return status === "OPEN" || status === "OVERDUE";
-}
-
-export function getActiveIssuancesCountByMaterial(materialId: string): number {
-    const bookings = getAllBookings();
-    const openIssuances = getAllIssuances().filter((i) => isOpen(i.status));
-
-    const bookingIds = new Set(
-        bookings.filter((b) => b.materialId === materialId).map((b) => b.id)
-    );
-
-    return openIssuances.filter((i) => bookingIds.has(i.bookingId)).length;
+function mapLoanToIssuanceStatus(s: BookLoanDTO["status"]): IssuanceStatus {
+    if (s === "RETURNED") return "RETURNED";
+    if (s === "OVERDUE") return "OVERDUE";
+    return "OPEN";
 }
 
 export type MyIssuanceView = {
@@ -94,176 +88,90 @@ export type MyIssuanceView = {
     booking: BookingViewDto;
 };
 
-export async function listMyIssuances(readerId: string): Promise<MyIssuanceView[]> {
-    await new Promise((r) => setTimeout(r, 150));
+export async function listMyIssuances(_readerId: string): Promise<MyIssuanceView[]> {
+    const loans = await http<BookLoanDTO[]>(`/loans/my`);
 
-    const bookings = getAllBookings().filter((b) => b.readerId === readerId);
-    const bookingsById = new Map(bookings.map((b) => [b.id, b]));
+    const issuances = loans
+        .filter((l) => l.status === "ISSUED" || l.status === "OVERDUE" || l.status === "RETURNED")
+        .sort((a, b) => (b.issuedAt ?? "").localeCompare(a.issuedAt ?? ""));
 
-    const issuances = getAllIssuances()
-        .filter((i) => bookingsById.has(i.bookingId))
-        .map((i) => {
-            const b = bookingsById.get(i.bookingId)!;
-            const m = materialCards.find((x) => x.id === b.materialId);
-
-            const overdueNow = i.status === "OPEN" && i.returnDeadline < todayISO();
-            const status: IssuanceStatus = overdueNow ? "OVERDUE" : i.status;
-
-            return {
-                id: i.id,
-                status,
-                issuanceDate: i.issuanceDate,
-                returnDeadline: i.returnDeadline,
-                renewCount: i.renewCount,
-                booking: {
-                    id: b.id,
-                    status: b.status,
-                    bookingDate: b.bookingDate,
-                    bookingDeadline: b.bookingDeadline,
-                    libraryId: b.libraryId,
-                    material: { id: b.materialId, title: m?.title ?? "Unknown", isbn: null },
-                },
-            } satisfies MyIssuanceView;
-        })
-        .sort((a, b) => b.issuanceDate.localeCompare(a.issuanceDate));
-
-    const needUpdate = issuances.some((x) => x.status === "OVERDUE");
-    if (needUpdate) {
-        const all = getAllIssuances();
-        const updated = all.map((i) => {
-            if (i.status === "OPEN" && i.returnDeadline < todayISO()) return { ...i, status: "OVERDUE" as const };
-            return i;
+    const result: MyIssuanceView[] = [];
+    for (const l of issuances) {
+        const m = await getMaterialCard(String(l.bookId));
+        result.push({
+            id: String(l.id),
+            status: mapLoanToIssuanceStatus(l.status),
+            issuanceDate: toISODate(l.issuedAt),
+            returnDeadline: toISODate(l.dueAt),
+            renewCount: 0,
+            booking: {
+                id: String(l.id),
+                status: "COMPLETED",
+                bookingDate: toISODate(l.reservedAt),
+                bookingDeadline: toISODate(l.reservedUntil),
+                libraryId: String(l.libraryId),
+                material: { id: String(l.bookId), title: m?.title ?? "Unknown", isbn: null },
+            },
         });
-        setAllIssuances(updated);
     }
-
-    return issuances;
+    return result;
 }
 
 export async function issueFromBooking(params: { readerId: string; bookingId: string }) {
-    await new Promise((r) => setTimeout(r, 200));
-
-    const bookings = getAllBookings();
-    const bIdx = bookings.findIndex((b) => b.id === params.bookingId);
-    if (bIdx === -1) throw new Error("BOOKING_NOT_FOUND");
-    if (bookings[bIdx].readerId !== params.readerId) throw new Error("FORBIDDEN");
-    if (bookings[bIdx].status !== "ACTIVE") throw new Error("BOOKING_NOT_ACTIVE");
-
-    const issuances = getAllIssuances();
-    const already = issuances.some((i) => i.bookingId === params.bookingId && isOpen(i.status));
-    if (already) throw new Error("ALREADY_ISSUED");
-
-    const issuanceDate = todayISO();
-    const issuance: StoredIssuance = {
-        id: uuid(),
-        bookingId: params.bookingId,
-        issuanceDate,
-        status: "OPEN",
-        returnDeadline: addDaysISO(issuanceDate, 14),
-        renewCount: 0,
-    };
-
-    bookings[bIdx] = { ...bookings[bIdx], status: "COMPLETED" };
-    setAllBookings(bookings);
-    setAllIssuances([issuance, ...issuances]);
-
-    return { ok: true, issuanceId: issuance.id };
+    void params.readerId;
+    await http(`/loans/${params.bookingId}/issue`, { method: "POST" });
+    return { ok: true, issuanceId: params.bookingId };
 }
 
-export async function renewIssuance(params: { readerId: string; issuanceId: string }) {
-    await new Promise((r) => setTimeout(r, 150));
-
-    const bookings = getAllBookings().filter((b) => b.readerId === params.readerId);
-    const bookingIds = new Set(bookings.map((b) => b.id));
-
-    const all = getAllIssuances();
-    const idx = all.findIndex((i) => i.id === params.issuanceId);
-    if (idx === -1) throw new Error("ISSUANCE_NOT_FOUND");
-    if (!bookingIds.has(all[idx].bookingId)) throw new Error("FORBIDDEN");
-
-    const current = all[idx];
-    if (!isOpen(current.status)) throw new Error("ISSUANCE_NOT_OPEN");
-    if (current.renewCount >= 2) throw new Error("RENEW_LIMIT");
-
-    all[idx] = {
-        ...current,
-        returnDeadline: addDaysISO(current.returnDeadline, 7),
-        renewCount: current.renewCount + 1,
-    };
-
-    setAllIssuances(all);
-    return { ok: true };
+export async function renewIssuance(_params: { readerId: string; issuanceId: string }) {
+    throw new Error("NOT_IMPLEMENTED");
 }
 
 export async function findIssuanceById(issuanceId: string) {
-    await new Promise((r) => setTimeout(r, 120));
-    const all = getAllIssuances();
-    return all.find((i) => i.id === issuanceId) ?? null;
+    const loan = await http<BookLoanDTO>(`/loans/${issuanceId}`);
+    return {
+        id: String(loan.id),
+        bookingId: String(loan.id),
+        issuanceDate: toISODate(loan.issuedAt),
+        status: mapLoanToIssuanceStatus(loan.status),
+        returnDeadline: toISODate(loan.dueAt),
+        renewCount: 0,
+    };
 }
 
 export async function returnIssuance(params: { issuanceId: string }) {
-    await new Promise((r) => setTimeout(r, 150));
-
-    const all = getAllIssuances();
-    const idx = all.findIndex((i) => i.id === params.issuanceId);
-    if (idx === -1) throw new Error("ISSUANCE_NOT_FOUND");
-
-    const current = all[idx];
-    if (current.status === "RETURNED") return { ok: true };
-
-    all[idx] = { ...current, status: "RETURNED" as const };
-    setAllIssuances(all);
+    await http(`/loans/${params.issuanceId}/return`, { method: "POST" });
     return { ok: true };
 }
 
-export async function listIssuancesForStaff(params?: {
-    q?: string;
-    status?: "" | "OPEN" | "OVERDUE" | "RETURNED";
-}): Promise<StaffIssuanceRow[]> {
-    await new Promise((r) => setTimeout(r, 150));
+export async function listIssuancesForStaff(params?: { q?: string; status?: "" | "OPEN" | "OVERDUE" | "RETURNED" }): Promise<StaffIssuanceRow[]> {
+    const qs = new URLSearchParams();
+    if (params?.q) qs.set("q", params.q);
+    if (params?.status) {
+        if (params.status === "OPEN") qs.set("status", "ISSUED");
+        else qs.set("status", params.status);
+    }
 
-    const q = (params?.q ?? "").trim().toLowerCase();
-    const status = (params?.status ?? "").trim().toUpperCase() as any;
+    const loans = await http<BookLoanDTO[]>(`/loans?${qs.toString()}`);
 
-    const bookings = getAllBookings(); // Booking[]
-    const bookingById = new Map<string, Booking>(bookings.map((b) => [b.id, b]));
+    const issuances = loans.filter((l) => l.status === "ISSUED" || l.status === "OVERDUE" || l.status === "RETURNED");
 
-    const now = new Date().toISOString().slice(0, 10);
-
-    let items: StaffIssuanceRow[] = getAllIssuances().map((i) => {
-        const b = bookingById.get(i.bookingId);
-        const materialId = b?.materialId ?? "unknown";
-        const title = materialCards.find((m) => m.id === materialId)?.title ?? "Unknown";
-
-        const computedStatus =
-            i.status === "RETURNED"
-                ? "RETURNED"
-                : i.returnDeadline < now
-                    ? "OVERDUE"
-                    : "OPEN";
-
-        return {
-            id: i.id,
-            bookingId: i.bookingId,
-            status: computedStatus,
-            issuanceDate: i.issuanceDate,
-            returnDeadline: i.returnDeadline,
-            renewCount: i.renewCount,
-            readerId: b?.readerId ?? "unknown",
-            materialId,
-            materialTitle: title,
-        };
-    });
-
-    if (status) items = items.filter((x) => x.status === status);
-
-    if (q) {
-        items = items.filter((x) => {
-            const hay = `${x.id} ${x.bookingId} ${x.readerId} ${x.materialId} ${x.materialTitle}`.toLowerCase();
-            return hay.includes(q);
+    const rows: StaffIssuanceRow[] = [];
+    for (const l of issuances) {
+        const m = await getMaterialCard(String(l.bookId));
+        rows.push({
+            id: String(l.id),
+            bookingId: String(l.id),
+            status: l.status === "RETURNED" ? "RETURNED" : l.status === "OVERDUE" ? "OVERDUE" : "OPEN",
+            issuanceDate: toISODate(l.issuedAt),
+            returnDeadline: toISODate(l.dueAt),
+            renewCount: 0,
+            readerId: String(l.userId),
+            materialId: String(l.bookId),
+            materialTitle: m?.title ?? "Unknown",
         });
     }
 
-    items.sort((a, b) => b.issuanceDate.localeCompare(a.issuanceDate));
-    return items;
+    rows.sort((a, b) => b.issuanceDate.localeCompare(a.issuanceDate));
+    return rows;
 }
