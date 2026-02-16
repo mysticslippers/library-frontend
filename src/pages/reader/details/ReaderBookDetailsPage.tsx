@@ -6,6 +6,7 @@ import PageHeader from "@/shared/ui/PageHeader";
 import Surface from "@/shared/ui/Surface";
 import { getMaterialCard } from "@/shared/api/libraryMockApi";
 import { createBooking } from "@/shared/api/bookingsMockApi";
+import { getDefaultLibraryId } from "@/shared/api/librariesApi";
 
 export default function ReaderBookDetailsPage() {
     const { id } = useParams();
@@ -17,15 +18,24 @@ export default function ReaderBookDetailsPage() {
     const [item, setItem] = useState<Awaited<ReturnType<typeof getMaterialCard>>>(null);
     const [actionLoading, setActionLoading] = useState(false);
 
+    const [libraryId, setLibraryId] = useState<string | null>(null);
+
     const materialId = useMemo(() => id ?? "", [id]);
     const backTo = (location.state as any)?.from ?? "/reader/catalog";
 
     useEffect(() => {
         let alive = true;
+
         setLoading(true);
-        getMaterialCard(materialId)
-            .then((x) => alive && setItem(x))
+
+        Promise.all([getMaterialCard(materialId), getDefaultLibraryId()])
+            .then(([x, libId]) => {
+                if (!alive) return;
+                setItem(x);
+                setLibraryId(libId);
+            })
             .finally(() => alive && setLoading(false));
+
         return () => {
             alive = false;
         };
@@ -37,13 +47,16 @@ export default function ReaderBookDetailsPage() {
         if (!user) return;
         try {
             setActionLoading(true);
-            await createBooking({ readerId: user.id, materialId, libraryId: "1" });
+
+            const libId = libraryId ?? (await getDefaultLibraryId());
+
+            await createBooking({ readerId: user.id, materialId, libraryId: libId });
             navigate("/reader/reservations");
         } catch (e: any) {
             const code = String(e?.message ?? "");
             if (code === "ALREADY_BOOKED") alert("У вас уже есть активная бронь на этот материал.");
             else if (code === "NOT_AVAILABLE") alert("К сожалению, сейчас нет доступных копий.");
-            else alert("Не удалось создать бронь.");
+            else alert(e?.message ? String(e.message) : "Не удалось создать бронь.");
         } finally {
             setActionLoading(false);
         }
