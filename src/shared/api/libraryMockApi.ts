@@ -1,9 +1,42 @@
 import type { MaterialCardDto } from "../types/library";
-import { materialCards as seedCards } from "../fixtures/materials";
-import { getActiveBookingsCountByMaterial } from "./bookingsMockApi";
-import { getActiveIssuancesCountByMaterial } from "./issuancesMockApi";
+import { getCurrentSession } from "./authApi";
 
-const LS_KEY = "lib.materialCards";
+const API_URL = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8080";
+
+type ApiResponse<T = any> = {
+    status: "SUCCESS" | "ERROR";
+    message?: string;
+    data?: T | null;
+    errors?: string[] | null;
+};
+
+type BookDTO = {
+    id: number;
+    title: string;
+    authorIds: number[];
+    libraryIds: number[];
+    publishingHouse: string;
+    publicationYear: string;
+    genre: string;
+    language: string;
+    isbn: string;
+};
+
+type AuthorDTO = {
+    id: number;
+    surname: string;
+    name: string;
+    middleName?: string | null;
+    bookIds?: number[];
+};
+
+type BookInventoryDTO = {
+    id: number;
+    bookId: number;
+    libraryId: number;
+    totalCopies: number;
+    availableCopies: number;
+};
 
 export type CatalogSort =
     | "relevance"
@@ -23,131 +56,211 @@ export type CatalogQuery = {
     sort?: CatalogSort;
 };
 
+function authHeader(): Record<string, string> {
+    const s = getCurrentSession();
+    return s?.token ? { Authorization: `Bearer ${s.token}` } : {};
+}
+
+async function http<T>(path: string, init?: RequestInit): Promise<T> {
+    const res = await fetch(`${API_URL}${path}`, {
+        ...init,
+        headers: {
+            "Content-Type": "application/json",
+            ...(init?.headers ?? {}),
+            ...authHeader(),
+        },
+    });
+
+    const body = (await res.json().catch(() => null)) as ApiResponse<T> | null;
+
+    if (!res.ok) {
+        const msg =
+            (body?.errors && body.errors.length ? body.errors[0] : null) ??
+            body?.message ??
+            `HTTP ${res.status}`;
+        const err: any = new Error(msg);
+        err.status = res.status;
+        err.body = body;
+        throw err;
+    }
+
+    return (body?.data as T) ?? (null as any);
+}
+
+function yearFromDateString(d?: string | null): string | null {
+    if (!d) return null;
+    const y = String(d).slice(0, 4);
+    return /^\d{4}$/.test(y) ? y : null;
+}
+
 function normalize(s: string) {
     return s.trim().toLowerCase();
 }
 
-function readCards(): MaterialCardDto[] {
-    try {
-        const raw = localStorage.getItem(LS_KEY);
-        if (!raw) {
-            localStorage.setItem(LS_KEY, JSON.stringify(seedCards));
-            return [...seedCards];
-        }
-        const parsed = JSON.parse(raw);
-        if (!Array.isArray(parsed)) return [...seedCards];
-        return parsed as MaterialCardDto[];
-    } catch {
-        return [...seedCards];
+let authorsCache: Map<number, string> | null = null;
+let inventoriesCache: Map<number, { total: number; available: number }> | null = null;
+
+async function loadAllAuthors(): Promise<Map<number, string>> {
+    if (authorsCache) return authorsCache;
+
+    const list = await http<AuthorDTO[]>(
+        `/authors?page=1&size=10000&sortBy=surname&sortDir=asc`
+    );
+
+    const map = new Map<number, string>();
+    for (const a of list) {
+        const full = [a.surname, a.name, a.middleName].filter(Boolean).join(" ");
+        map.set(a.id, full);
     }
+    authorsCache = map;
+    return map;
 }
 
-function writeCards(items: MaterialCardDto[]) {
-    localStorage.setItem(LS_KEY, JSON.stringify(items));
+async function loadAllInventories(): Promise<Map<number, { total: number; available: number }>> {
+    if (inventoriesCache) return inventoriesCache;
+
+    const list = await http<BookInventoryDTO[]>(
+        `/book-inventories?page=1&size=10000&sortBy=id&sortDir=asc`
+    );
+
+    const map = new Map<number, { total: number; available: number }>();
+    for (const inv of list) {
+        const cur = map.get(inv.bookId) ?? { total: 0, available: 0 };
+        cur.total += inv.totalCopies ?? 0;
+        cur.available += inv.availableCopies ?? 0;
+        map.set(inv.bookId, cur);
+    }
+
+    inventoriesCache = map;
+    return map;
 }
 
-function withAvailability(x: MaterialCardDto): MaterialCardDto {
-    const activeBookings = getActiveBookingsCountByMaterial(x.id);
-    const activeIssuances = getActiveIssuancesCountByMaterial(x.id);
-    const available = Math.max(0, x.totalCopies - activeBookings - activeIssuances);
-    return { ...x, availableCopies: available };
-}
+function mapBookToCard(
+    b: BookDTO,
+    authorsById: Map<number, string>,
+    invByBookId: Map<number, { total: number; available: number }>
+): MaterialCardDto {
+    const authors = (b.authorIds ?? [])
+        .map((id) => authorsById.get(id))
+        .filter(Boolean)
+        .join(", ");
 
-function toYearNum(x?: string | null) {
-    const n = Number(String(x ?? "").slice(0, 4));
-    return Number.isFinite(n) ? n : null;
+    const inv = invByBookId.get(b.id);
+    const totalCopies = inv?.total ?? 0;
+    const availableCopies = inv?.available ?? 0;
+
+    return {
+        id: String(b.id),
+        title: b.title,
+        authors: authors || "—",
+        genre: b.genre ?? null,
+        year: yearFromDateString(b.publicationYear),
+        description: `${b.publishingHouse ?? ""}${b.isbn ? ` · ISBN ${b.isbn}` : ""}`.trim() || "—",
+        coverUrl: null,
+        totalCopies,
+        availableCopies,
+    };
 }
 
 export async function getCatalogFacets(): Promise<{ genres: string[]; years: number[] }> {
-    await new Promise((r) => setTimeout(r, 50));
-    const items = readCards();
+    const [books, _a, _i] = await Promise.all([
+        http<BookDTO[]>(`/books?page=1&size=10000&sortBy=title&sortDir=asc`),
+        loadAllAuthors(),
+        loadAllInventories(),
+    ]);
 
-    const genres = Array.from(new Set(items.map((x) => x.genre).filter(Boolean) as string[]))
-        .sort((a, b) => a.localeCompare(b));
+    const genres = Array.from(new Set(books.map((b) => b.genre).filter(Boolean))).sort((a, b) =>
+        a.localeCompare(b)
+    );
 
     const years = Array.from(
-        new Set(items.map((x) => toYearNum(x.year)).filter((x): x is number => x !== null))
+        new Set(
+            books
+                .map((b) => Number(String(b.publicationYear ?? "").slice(0, 4)))
+                .filter((x) => Number.isFinite(x))
+        )
     ).sort((a, b) => b - a);
 
     return { genres, years };
 }
 
 export async function getCatalog(query: CatalogQuery): Promise<MaterialCardDto[]> {
-    await new Promise((r) => setTimeout(r, 150));
-
-    const q = query.q ? normalize(query.q) : "";
-    const author = query.author ? normalize(query.author) : "";
-    const genre = query.genre ? normalize(query.genre) : "";
     const sort = query.sort ?? "relevance";
-    const availableOnly = Boolean(query.availableOnly);
+
+    const params = new URLSearchParams();
+    params.set("page", "1");
+    params.set("size", "10000");
+
+    params.set("sortBy", "title");
+    params.set("sortDir", sort === "title_desc" ? "desc" : "asc");
+
+    if (query.q) params.set("filter.title", query.q.trim());
+    if (query.genre) params.set("filter.genre", query.genre.trim());
+
+    const [books, authorsById, invByBookId] = await Promise.all([
+        http<BookDTO[]>(`/books?${params.toString()}`),
+        loadAllAuthors(),
+        loadAllInventories(),
+    ]);
+
+    let cards = books.map((b) => mapBookToCard(b, authorsById, invByBookId));
+
+    if (query.author) {
+        const a = normalize(query.author);
+        cards = cards.filter((x) => normalize(x.authors).includes(a));
+    }
 
     const yf = typeof query.yearFrom === "number" ? query.yearFrom : null;
     const yt = typeof query.yearTo === "number" ? query.yearTo : null;
     const yearMin = yf !== null && yt !== null ? Math.min(yf, yt) : yf ?? yt;
     const yearMax = yf !== null && yt !== null ? Math.max(yf, yt) : yf ?? yt;
 
-    let items = readCards().map(withAvailability);
-
-    if (q) {
-        items = items.filter((x) => {
-            const hay = normalize(`${x.title} ${x.authors} ${x.genre ?? ""} ${x.year ?? ""}`);
-            return hay.includes(q);
-        });
-    }
-
-    if (author) {
-        items = items.filter((x) => normalize(x.authors).includes(author));
-    }
-
-    if (genre) {
-        items = items.filter((x) => normalize(x.genre ?? "") === genre);
-    }
-
     if (yearMin !== null || yearMax !== null) {
-        items = items.filter((x) => {
-            const y = toYearNum(x.year);
-            if (y === null) return false;
+        cards = cards.filter((x) => {
+            const y = Number(String(x.year ?? ""));
+            if (!Number.isFinite(y)) return false;
             if (yearMin !== null && y < yearMin) return false;
-            return !(yearMax !== null && y > yearMax);
-
+            if (yearMax !== null && y > yearMax) return false;
+            return true;
         });
     }
 
-    if (availableOnly) {
-        items = items.filter((x) => (x.availableCopies ?? 0) > 0);
+    if (query.availableOnly) {
+        cards = cards.filter((x) => (x.availableCopies ?? 0) > 0);
     }
 
-    if (sort === "title_asc") items.sort((a, b) => a.title.localeCompare(b.title));
-    if (sort === "title_desc") items.sort((a, b) => b.title.localeCompare(a.title));
-    if (sort === "available_desc") items.sort((a, b) => (b.availableCopies ?? 0) - (a.availableCopies ?? 0));
+    if (sort === "available_desc")
+        cards.sort((a, b) => (b.availableCopies ?? 0) - (a.availableCopies ?? 0));
     if (sort === "year_desc")
-        items.sort((a, b) => (toYearNum(b.year) ?? -999999) - (toYearNum(a.year) ?? -999999));
+        cards.sort((a, b) => Number(b.year ?? -999999) - Number(a.year ?? -999999));
     if (sort === "year_asc")
-        items.sort((a, b) => (toYearNum(a.year) ?? 999999) - (toYearNum(b.year) ?? 999999));
+        cards.sort((a, b) => Number(a.year ?? 999999) - Number(b.year ?? 999999));
 
-    return items;
+    return cards;
 }
 
 export async function getMaterialCard(id: string): Promise<MaterialCardDto | null> {
-    await new Promise((r) => setTimeout(r, 80));
-    const item = readCards().find((x) => x.id === id);
-    return item ? withAvailability(item) : null;
+    const [books, authorsById, invByBookId] = await Promise.all([
+        http<BookDTO[]>(`/books?page=1&size=10000&sortBy=title&sortDir=asc`),
+        loadAllAuthors(),
+        loadAllInventories(),
+    ]);
+
+    const bookId = Number(id);
+    const b = books.find((x) => x.id === bookId);
+    return b ? mapBookToCard(b, authorsById, invByBookId) : null;
 }
 
 export async function listAllMaterials(): Promise<MaterialCardDto[]> {
-    await new Promise((r) => setTimeout(r, 80));
-    return readCards().map(withAvailability);
+    const [books, authorsById, invByBookId] = await Promise.all([
+        http<BookDTO[]>(`/books?page=1&size=10000&sortBy=title&sortDir=asc`),
+        loadAllAuthors(),
+        loadAllInventories(),
+    ]);
+
+    return books.map((b) => mapBookToCard(b, authorsById, invByBookId));
 }
 
-export async function upsertMaterial(input: MaterialCardDto): Promise<MaterialCardDto> {
-    await new Promise((r) => setTimeout(r, 120));
-
-    const items = readCards();
-    const idx = items.findIndex((x) => x.id === input.id);
-
-    if (idx >= 0) items[idx] = { ...items[idx], ...input };
-    else items.push(input);
-
-    writeCards(items);
-    return withAvailability(input);
+export async function upsertMaterial(_input: MaterialCardDto): Promise<MaterialCardDto> {
+    throw new Error("NOT_IMPLEMENTED");
 }
