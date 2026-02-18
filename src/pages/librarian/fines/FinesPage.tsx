@@ -63,7 +63,7 @@ export default function FinesPage() {
             </span>
                     </h1>
                     <p className="mt-1 text-slate-600">
-                        Неоплачено: <b>{totalUnpaid.toFixed(2)} €</b>
+                        Неоплачено: <b>{totalUnpaid.toFixed(2)} ₽</b>
                     </p>
                 </div>
 
@@ -164,7 +164,7 @@ export default function FinesPage() {
                                             {x.description}
                                             {x.writtenOff ? <span className="ml-2 text-xs text-slate-500">(списано)</span> : null}
                                         </td>
-                                        <td className="py-3 pr-4 text-slate-700">{(x.amount ?? 0).toFixed(2)} €</td>
+                                        <td className="py-3 pr-4 text-slate-700">{(x.amount ?? 0).toFixed(2)} ₽</td>
                                         <td className="py-3 pr-4">
                                             <StatusBadge value={x.state} />
                                         </td>
