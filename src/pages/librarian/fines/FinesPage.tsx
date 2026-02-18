@@ -14,9 +14,9 @@ export default function FinesPage() {
     const [loading, setLoading] = useState(true);
     const [busyId, setBusyId] = useState<string | null>(null);
 
-    const load = () => {
+    const load = (nextQ: string = q, nextState: "" | "UNPAID" | "PAID" = state) => {
         setLoading(true);
-        listFinesForStaff({ q, state })
+        listFinesForStaff({ q: nextQ, state: nextState })
             .then(setItems)
             .finally(() => setLoading(false));
     };
@@ -68,7 +68,7 @@ export default function FinesPage() {
                 </div>
 
                 <button
-                    onClick={load}
+                    onClick={() => load()}
                     className="rounded-2xl border border-slate-200 px-4 py-2 font-semibold hover:bg-brand-50 hover:border-brand-200 transition"
                 >
                     Обновить
@@ -105,7 +105,7 @@ export default function FinesPage() {
 
                 <div className="mt-4 flex gap-2">
                     <button
-                        onClick={load}
+                        onClick={() => load()}
                         className="rounded-2xl bg-gradient-to-r from-brand-600 to-brand-500 px-4 py-3 font-semibold text-white
                        shadow-[0_12px_30px_-15px_rgba(124,58,237,0.65)]
                        hover:brightness-105 active:translate-y-[1px] transition"
@@ -117,7 +117,7 @@ export default function FinesPage() {
                         onClick={() => {
                             setQ("");
                             setState("");
-                            setTimeout(load, 0);
+                            load("", "");
                         }}
                         className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold hover:bg-brand-50 hover:border-brand-200 transition"
                     >
