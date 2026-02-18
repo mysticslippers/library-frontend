@@ -136,7 +136,7 @@ export default function LibrarianDashboardPage() {
             <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
                 <MetricCard title="Активные брони" value={`${activeBookings.length}`} hint="Готовы к выдаче" to="/librarian/bookings" />
                 <MetricCard title="Просроченные выдачи" value={`${overdueIssuances.length}`} hint="Нужно обработать возврат/штраф" to="/librarian/issuances" />
-                <MetricCard title="Неоплаченные штрафы" value={`${unpaidFines.length} · ${unpaidTotal.toFixed(2)} €`} hint="Контроль задолженностей" to="/librarian/fines" />
+                <MetricCard title="Неоплаченные штрафы" value={`${unpaidFines.length} · ${unpaidTotal.toFixed(2)} ₽`} hint="Контроль задолженностей" to="/librarian/fines" />
             </div>
 
             <div className="mt-6">
@@ -228,7 +228,7 @@ export default function LibrarianDashboardPage() {
                                     <div className="text-sm text-slate-600">Fine</div>
                                     <div className="mt-1 font-mono text-xs text-slate-700">{f.id}</div>
                                     <div className="mt-2 text-sm text-slate-700">
-                                        Amount: <span className="font-semibold">{Number(f.amount).toFixed(2)} €</span>
+                                        Amount: <span className="font-semibold">{Number(f.amount).toFixed(2)} ₽</span>
                                     </div>
                                     <div className="text-sm text-slate-700">Due: {f.dueDate}</div>
                                 </li>
