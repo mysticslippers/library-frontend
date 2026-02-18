@@ -42,7 +42,7 @@ export default function ReaderFinesPage() {
         <div className="p-6">
             <PageHeader
                 title="Штрафы"
-                subtitle={`Неоплачено: ${totalUnpaid.toFixed(2)} €`}
+                subtitle={`Неоплачено: ${totalUnpaid.toFixed(2)} ₽`}
                 actionLabel="К выдачам"
                 actionTo="/reader/loans"
             />
@@ -74,7 +74,7 @@ export default function ReaderFinesPage() {
                                                 </div>
 
                                                 <div className="mt-1 text-sm text-slate-600">
-                                                    Сумма: <b>{f.amount.toFixed(2)} €</b> · Дата: {f.dueDate}
+                                                    Сумма: <b>{f.amount.toFixed(2)} ₽</b> · Дата: {f.dueDate}
                                                     {f.paymentDate ? <span className="text-slate-500"> · Оплачено: {f.paymentDate}</span> : null}
                                                 </div>
 
