@@ -1,5 +1,7 @@
 export type Role = "READER" | "LIBRARIAN" | "ADMIN";
-export type BookingStatus = "ACTIVE" | "CANCELLED" | "EXPIRED" | "COMPLETED";
+
+export type BookingStatus = "PENDING" | "RESERVED" | "ISSUED" | "CANCELLED";
+
 export type IssuanceStatus = "OPEN" | "RETURNED" | "OVERDUE";
 export type FineState = "UNPAID" | "PAID" | "CANCELLED";
 
