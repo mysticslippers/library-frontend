@@ -39,7 +39,12 @@ export default function ReaderReservationsPage() {
 
     return (
         <div className="p-6">
-            <PageHeader title="Мои брони" subtitle="Активные и прошлые бронирования." actionLabel="В каталог" actionTo="/reader/catalog" />
+            <PageHeader
+                title="Мои брони"
+                subtitle="Активные и прошлые бронирования."
+                actionLabel="В каталог"
+                actionTo="/reader/catalog"
+            />
 
             <div className="mt-6">
                 <Surface>
@@ -56,7 +61,7 @@ export default function ReaderReservationsPage() {
                     ) : (
                         <div className="space-y-3">
                             {items.map((b) => {
-                                const isActive = b.status === "ACTIVE";
+                                const isActive = b.status === "PENDING" || b.status === "RESERVED";
                                 const disabled = busyId === b.id;
 
                                 return (
