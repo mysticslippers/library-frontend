@@ -12,6 +12,9 @@ export default function RequireRole({
     children: ReactNode;
 }) {
     const user = useSelector((s: RootState) => s.auth.user);
+    const initialized = useSelector((s: RootState) => s.auth.initialized);
+
+    if (!initialized) return null;
 
     if (!user) return <Navigate to="/auth/login" replace />;
 
@@ -21,3 +24,4 @@ export default function RequireRole({
 
     return <>{children}</>;
 }
+    
