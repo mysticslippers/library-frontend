@@ -80,13 +80,11 @@ export default function CirculationPage() {
             <div className="flex items-end justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold">
-            <span className="bg-gradient-to-r from-brand-700 to-brand-500 bg-clip-text text-transparent">
-              Циркуляция
-            </span>
+                        <span className="bg-gradient-to-r from-brand-700 to-brand-500 bg-clip-text text-transparent">
+                            Циркуляция
+                        </span>
                     </h1>
-                    <p className="mt-1 text-slate-600">
-                        Выдача по брони и возврат по выдаче. (Локальные мок-данные)
-                    </p>
+                    <p className="mt-1 text-slate-600">Выдача по брони и возврат по выдаче.</p>
                 </div>
 
                 <div className="text-sm text-slate-600">
@@ -124,12 +122,14 @@ export default function CirculationPage() {
                                 <div>ID: {bookingInfo.id}</div>
                                 <div>Reader ID: {bookingInfo.readerId}</div>
                                 <div>Material ID: {bookingInfo.materialId}</div>
-                                <div>Status: <span className="font-semibold">{bookingInfo.status}</span></div>
+                                <div>
+                                    Status: <span className="font-semibold">{bookingInfo.status}</span>
+                                </div>
                                 <div>Deadline: {bookingInfo.bookingDeadline}</div>
                             </div>
 
                             <button
-                                disabled={issueBusy || bookingInfo.status !== "ACTIVE"}
+                                disabled={issueBusy || (bookingInfo.status !== "PENDING" && bookingInfo.status !== "RESERVED")}
                                 onClick={doIssue}
                                 className="mt-4 w-full rounded-2xl bg-gradient-to-r from-brand-600 to-brand-500 px-4 py-3 font-semibold text-white
                            shadow-[0_12px_30px_-15px_rgba(124,58,237,0.65)]
@@ -138,9 +138,9 @@ export default function CirculationPage() {
                                 {issueBusy ? "Оформляем…" : "Оформить выдачу"}
                             </button>
 
-                            {bookingInfo.status !== "ACTIVE" ? (
+                            {bookingInfo.status !== "PENDING" && bookingInfo.status !== "RESERVED" ? (
                                 <div className="mt-2 text-xs text-slate-600">
-                                    Можно оформить выдачу только для брони со статусом <b>ACTIVE</b>.
+                                    Можно оформить выдачу только для брони со статусом <b>PENDING</b> или <b>RESERVED</b>.
                                 </div>
                             ) : null}
                         </div>
@@ -175,7 +175,9 @@ export default function CirculationPage() {
                             <div className="mt-1 text-slate-700">
                                 <div>ID: {issuanceInfo.id}</div>
                                 <div>Booking ID: {issuanceInfo.bookingId}</div>
-                                <div>Status: <span className="font-semibold">{issuanceInfo.status}</span></div>
+                                <div>
+                                    Status: <span className="font-semibold">{issuanceInfo.status}</span>
+                                </div>
                                 <div>Return deadline: {issuanceInfo.returnDeadline}</div>
                                 <div>Renew count: {issuanceInfo.renewCount}</div>
                             </div>
