@@ -75,8 +75,9 @@ function toISODate(x?: string | null): string {
 
 function mapLoanToBookingStatus(s: BookLoanDTO["status"]): BookingStatus {
     if (s === "CANCELLED") return "CANCELLED";
-    if (s === "PENDING" || s === "RESERVED") return "ACTIVE";
-    return "COMPLETED";
+    if (s === "PENDING" || s === "RESERVED" || s === "ISSUED") return s;
+
+    return "ISSUED";
 }
 
 export function getActiveBookingsCountByMaterial(_materialId: string): number {
@@ -87,7 +88,13 @@ export async function listMyBookings(_readerId: string): Promise<BookingViewDto[
     const loans = await http<BookLoanDTO[]>(`/loans/my`);
 
     const bookings = loans
-        .filter((l) => l.status === "PENDING" || l.status === "RESERVED" || l.status === "CANCELLED")
+        .filter(
+            (l) =>
+                l.status === "PENDING" ||
+                l.status === "RESERVED" ||
+                l.status === "CANCELLED" ||
+                l.status === "ISSUED"
+        )
         .sort((a, b) => (b.reservedAt ?? "").localeCompare(a.reservedAt ?? ""));
 
     const result: BookingViewDto[] = [];
@@ -109,7 +116,11 @@ export async function listMyBookings(_readerId: string): Promise<BookingViewDto[
     return result;
 }
 
-export async function createBooking(params: { readerId: string; materialId: string; libraryId?: string }): Promise<Booking> {
+export async function createBooking(params: {
+    readerId: string;
+    materialId: string;
+    libraryId?: string;
+}): Promise<Booking> {
     void params.readerId;
 
     const payload = await http<BookLoanDTO>(`/loans/reserve`, {
@@ -155,11 +166,20 @@ export async function findBookingById(bookingId: string) {
 export async function listBookingsForStaff(params?: { q?: string; status?: string }): Promise<StaffBookingRow[]> {
     const qs = new URLSearchParams();
     if (params?.q) qs.set("q", params.q);
-    if (params?.status) qs.set("status", params.status);
+    if (params?.status) {
+        const s = params.status.toUpperCase();
+        qs.set("status", s === "EXPIRED" ? "CANCELLED" : s);
+    }
 
     const loans = await http<BookLoanDTO[]>(`/loans?${qs.toString()}`);
 
-    const bookings = loans.filter((l) => l.status === "PENDING" || l.status === "RESERVED" || l.status === "CANCELLED");
+    const bookings = loans.filter(
+        (l) =>
+            l.status === "PENDING" ||
+            l.status === "RESERVED" ||
+            l.status === "CANCELLED" ||
+            l.status === "ISSUED"
+    );
 
     const rows: StaffBookingRow[] = [];
     for (const l of bookings) {
