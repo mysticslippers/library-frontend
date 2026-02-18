@@ -106,18 +106,15 @@ export default function LibrarianDashboardPage() {
 
     const today = todayISO();
 
-    const activeBookings = bookings.filter(
-        (b) => String(b.status).toUpperCase() === "ACTIVE"
-    );
+    const activeBookings = bookings.filter((b) => {
+        const s = String(b.status).toUpperCase();
+        return s === "PENDING" || s === "RESERVED";
+    });
 
-    const openIssuances = issuances.filter(
-        (i) => String(i.status).toUpperCase() !== "RETURNED"
-    );
+    const openIssuances = issuances.filter((i) => String(i.status).toUpperCase() !== "RETURNED");
     const overdueIssuances = openIssuances.filter((i) => i.returnDeadline < today);
 
-    const unpaidFines = fines.filter(
-        (f) => String(f.state).toUpperCase() === "UNPAID"
-    );
+    const unpaidFines = fines.filter((f) => String(f.state).toUpperCase() === "UNPAID");
     const unpaidTotal = unpaidFines.reduce((s, f) => s + (Number(f.amount) || 0), 0);
 
     const lastActiveBookings = [...activeBookings]
@@ -134,30 +131,12 @@ export default function LibrarianDashboardPage() {
 
     return (
         <div className="p-6">
-            <PageHeader
-                title="Дашборд библиотекаря"
-                subtitle="Ключевые показатели и быстрые действия."
-            />
+            <PageHeader title="Дашборд библиотекаря" subtitle="Ключевые показатели и быстрые действия." />
 
             <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                <MetricCard
-                    title="Активные брони"
-                    value={`${activeBookings.length}`}
-                    hint="Готовы к выдаче"
-                    to="/librarian/bookings"
-                />
-                <MetricCard
-                    title="Просроченные выдачи"
-                    value={`${overdueIssuances.length}`}
-                    hint="Нужно обработать возврат/штраф"
-                    to="/librarian/issuances"
-                />
-                <MetricCard
-                    title="Неоплаченные штрафы"
-                    value={`${unpaidFines.length} · ${unpaidTotal.toFixed(2)} €`}
-                    hint="Контроль задолженностей"
-                    to="/librarian/fines"
-                />
+                <MetricCard title="Активные брони" value={`${activeBookings.length}`} hint="Готовы к выдаче" to="/librarian/bookings" />
+                <MetricCard title="Просроченные выдачи" value={`${overdueIssuances.length}`} hint="Нужно обработать возврат/штраф" to="/librarian/issuances" />
+                <MetricCard title="Неоплаченные штрафы" value={`${unpaidFines.length} · ${unpaidTotal.toFixed(2)} €`} hint="Контроль задолженностей" to="/librarian/fines" />
             </div>
 
             <div className="mt-6">
@@ -202,9 +181,7 @@ export default function LibrarianDashboardPage() {
             <div className="mt-6 grid grid-cols-1 lg:grid-cols-3 gap-4">
                 <ListBlock title="Последние активные брони" to="/librarian/bookings">
                     {lastActiveBookings.length === 0 ? (
-                        <div className="rounded-2xl border border-slate-200 p-4 text-slate-600">
-                            Пока нет активных броней.
-                        </div>
+                        <div className="rounded-2xl border border-slate-200 p-4 text-slate-600">Пока нет активных броней.</div>
                     ) : (
                         <ul className="space-y-2">
                             {lastActiveBookings.map((b) => (
@@ -225,17 +202,15 @@ export default function LibrarianDashboardPage() {
 
                 <ListBlock title="Ближайшие просрочки" to="/librarian/issuances">
                     {lastOverdues.length === 0 ? (
-                        <div className="rounded-2xl border border-slate-200 p-4 text-slate-600">
-                            Просрочек нет — красота.
-                        </div>
+                        <div className="rounded-2xl border border-slate-200 p-4 text-slate-600">Пока нет просроченных выдач.</div>
                     ) : (
                         <ul className="space-y-2">
                             {lastOverdues.map((i) => (
                                 <li key={i.id} className="rounded-2xl border border-slate-200 p-4">
                                     <div className="text-sm text-slate-600">Issuance</div>
                                     <div className="mt-1 font-mono text-xs text-slate-700">{i.id}</div>
-                                    <div className="mt-2 text-sm text-red-600 font-semibold">
-                                        Return deadline: {i.returnDeadline}
+                                    <div className="mt-2 text-sm text-slate-700">
+                                        Deadline: <span className="font-semibold">{i.returnDeadline}</span>
                                     </div>
                                 </li>
                             ))}
@@ -243,28 +218,19 @@ export default function LibrarianDashboardPage() {
                     )}
                 </ListBlock>
 
-                <ListBlock title="Неоплаченные штрафы" to="/librarian/fines">
+                <ListBlock title="Последние неоплаченные штрафы" to="/librarian/fines">
                     {lastUnpaidFines.length === 0 ? (
-                        <div className="rounded-2xl border border-slate-200 p-4 text-slate-600">
-                            Неоплаченных штрафов нет.
-                        </div>
+                        <div className="rounded-2xl border border-slate-200 p-4 text-slate-600">Пока нет неоплаченных штрафов.</div>
                     ) : (
                         <ul className="space-y-2">
                             {lastUnpaidFines.map((f) => (
                                 <li key={f.id} className="rounded-2xl border border-slate-200 p-4">
-                                    <div className="flex items-center justify-between gap-2">
-                                        <div>
-                                            <div className="text-sm text-slate-600">Fine</div>
-                                            <div className="mt-1 font-mono text-xs text-slate-700">{f.id}</div>
-                                        </div>
-                                        <div className="font-semibold text-slate-900">
-                                            {(Number(f.amount) || 0).toFixed(2)} €
-                                        </div>
-                                    </div>
+                                    <div className="text-sm text-slate-600">Fine</div>
+                                    <div className="mt-1 font-mono text-xs text-slate-700">{f.id}</div>
                                     <div className="mt-2 text-sm text-slate-700">
-                                        Reader: <span className="font-mono text-xs">{f.readerId}</span>
+                                        Amount: <span className="font-semibold">{Number(f.amount).toFixed(2)} €</span>
                                     </div>
-                                    <div className="text-sm text-slate-700">{f.description}</div>
+                                    <div className="text-sm text-slate-700">Due: {f.dueDate}</div>
                                 </li>
                             ))}
                         </ul>
