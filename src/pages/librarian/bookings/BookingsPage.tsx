@@ -50,9 +50,9 @@ export default function BookingsPage() {
             <div className="flex items-end justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold">
-            <span className="bg-gradient-to-r from-brand-700 to-brand-500 bg-clip-text text-transparent">
-              Брони
-            </span>
+                        <span className="bg-gradient-to-r from-brand-700 to-brand-500 bg-clip-text text-transparent">
+                            Брони
+                        </span>
                     </h1>
                     <p className="mt-1 text-slate-600">Поиск, фильтры и действия по бронированиям.</p>
                 </div>
@@ -87,10 +87,10 @@ export default function BookingsPage() {
                          focus:border-brand-300 focus:ring-4 focus:ring-brand-200/40"
                         >
                             <option value="">Все</option>
-                            <option value="ACTIVE">ACTIVE</option>
-                            <option value="COMPLETED">COMPLETED</option>
+                            <option value="PENDING">PENDING</option>
+                            <option value="RESERVED">RESERVED</option>
+                            <option value="ISSUED">ISSUED</option>
                             <option value="CANCELLED">CANCELLED</option>
-                            <option value="EXPIRED">EXPIRED</option>
                         </select>
                     </label>
                 </div>
@@ -145,8 +145,8 @@ export default function BookingsPage() {
                             <tbody>
                             {items.map((x) => {
                                 const disabled = busyId === x.id;
-                                const canIssue = x.status === "ACTIVE";
-                                const canCancel = x.status === "ACTIVE";
+                                const canIssue = x.status === "PENDING" || x.status === "RESERVED";
+                                const canCancel = x.status === "PENDING" || x.status === "RESERVED";
 
                                 return (
                                     <tr key={x.id} className="border-b last:border-b-0">
