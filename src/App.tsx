@@ -62,13 +62,6 @@ function TopBar() {
                 <nav className="flex items-center gap-3 text-sm">
                     {user ? (
                         <>
-                            <Link className="hover:text-brand-700" to="/reader">
-                                Reader
-                            </Link>
-                            <Link className="hover:text-brand-700" to="/librarian">
-                                Librarian
-                            </Link>
-
                             <span className="hidden sm:inline text-slate-500">
                                 {user.identifier} · {user.role}
                             </span>
