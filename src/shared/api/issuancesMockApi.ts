@@ -106,7 +106,7 @@ export async function listMyIssuances(_readerId: string): Promise<MyIssuanceView
             renewCount: 0,
             booking: {
                 id: String(l.id),
-                status: "COMPLETED",
+                status: "ISSUED",
                 bookingDate: toISODate(l.reservedAt),
                 bookingDeadline: toISODate(l.reservedUntil),
                 libraryId: String(l.libraryId),
