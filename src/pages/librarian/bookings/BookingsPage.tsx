@@ -10,9 +10,9 @@ export default function BookingsPage() {
     const [loading, setLoading] = useState(true);
     const [busyId, setBusyId] = useState<string | null>(null);
 
-    const load = () => {
+    const load = (nextQ: string = q, nextStatus: string = status) => {
         setLoading(true);
-        listBookingsForStaff({ q, status })
+        listBookingsForStaff({ q: nextQ, status: nextStatus })
             .then(setItems)
             .finally(() => setLoading(false));
     };
@@ -58,7 +58,7 @@ export default function BookingsPage() {
                 </div>
 
                 <button
-                    onClick={load}
+                    onClick={() => load()}
                     className="rounded-2xl border border-slate-200 px-4 py-2 font-semibold hover:bg-brand-50 hover:border-brand-200 transition"
                 >
                     Обновить
@@ -97,7 +97,7 @@ export default function BookingsPage() {
 
                 <div className="mt-4 flex gap-2">
                     <button
-                        onClick={load}
+                        onClick={() => load()}
                         className="rounded-2xl bg-gradient-to-r from-brand-600 to-brand-500 px-4 py-3 font-semibold text-white
                        shadow-[0_12px_30px_-15px_rgba(124,58,237,0.65)]
                        hover:brightness-105 active:translate-y-[1px] transition"
@@ -109,7 +109,7 @@ export default function BookingsPage() {
                         onClick={() => {
                             setQ("");
                             setStatus("");
-                            setTimeout(load, 0);
+                            load("", "");
                         }}
                         className="rounded-2xl border border-slate-200 px-4 py-3 font-semibold hover:bg-brand-50 hover:border-brand-200 transition"
                     >
