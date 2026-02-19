@@ -97,6 +97,22 @@ function normalize(s: string) {
     return s.trim().toLowerCase();
 }
 
+function matchesFreeText(card: MaterialCardDto, q: string): boolean {
+    const qq = normalize(q);
+    if (!qq) return true;
+
+    const parts: string[] = [];
+    if (card.id) parts.push(String(card.id));
+    if (card.title) parts.push(card.title);
+    if (card.authors) parts.push(card.authors);
+    if (card.genre) parts.push(String(card.genre));
+    if (card.year) parts.push(String(card.year));
+    if (card.description) parts.push(card.description);
+
+    const hay = normalize(parts.join(" "));
+    return hay.includes(qq);
+}
+
 let authorsCache: Map<number, string> | null = null;
 let inventoriesCache: Map<number, { total: number; available: number }> | null = null;
 
@@ -194,7 +210,6 @@ export async function getCatalog(query: CatalogQuery): Promise<MaterialCardDto[]
     params.set("sortBy", "title");
     params.set("sortDir", sort === "title_desc" ? "desc" : "asc");
 
-    if (query.q) params.set("filter.title", query.q.trim());
     if (query.genre) params.set("filter.genre", query.genre.trim());
 
     const [books, authorsById, invByBookId] = await Promise.all([
@@ -204,6 +219,10 @@ export async function getCatalog(query: CatalogQuery): Promise<MaterialCardDto[]
     ]);
 
     let cards = books.map((b) => mapBookToCard(b, authorsById, invByBookId));
+
+    if (query.q) {
+        cards = cards.filter((x) => matchesFreeText(x, query.q!));
+    }
 
     if (query.author) {
         const a = normalize(query.author);
