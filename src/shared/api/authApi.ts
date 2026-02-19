@@ -1,6 +1,6 @@
 import type { AuthUser, Role } from "../types/library";
 
-const LS_SESSION = "lib.session";
+const COOKIE_TOKEN = "lib.jwt";
 const API_URL = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8080";
 
 type ApiResponse<T = any> = {
@@ -9,6 +9,30 @@ type ApiResponse<T = any> = {
     data?: T | null;
     errors?: string[] | null;
 };
+
+function setCookie(name: string, value: string, days = 30) {
+    const maxAge = Math.max(0, Math.floor(days * 24 * 60 * 60));
+    const secure = typeof location !== "undefined" && location.protocol === "https:" ? "; Secure" : "";
+    document.cookie = `${encodeURIComponent(name)}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAge}; SameSite=Lax${secure}`;
+}
+
+function getCookie(name: string): string | null {
+    if (typeof document === "undefined") return null;
+    const needle = `${encodeURIComponent(name)}=`;
+    const parts = document.cookie.split(";");
+    for (const raw of parts) {
+        const s = raw.trim();
+        if (s.startsWith(needle)) {
+            return decodeURIComponent(s.slice(needle.length));
+        }
+    }
+    return null;
+}
+
+function deleteCookie(name: string) {
+    const secure = typeof location !== "undefined" && location.protocol === "https:" ? "; Secure" : "";
+    document.cookie = `${encodeURIComponent(name)}=; Path=/; Max-Age=0; SameSite=Lax${secure}`;
+}
 
 function normalizeEmail(email: string) {
     return email.trim().toLowerCase();
@@ -114,17 +138,16 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
 
 export function getCurrentSession(): { token: string; user: AuthUser } | null {
     try {
-        const raw = localStorage.getItem(LS_SESSION);
-        if (!raw) return null;
-
-        const parsed = JSON.parse(raw) as any;
-        const token = typeof parsed === "string" ? parsed : parsed?.token;
+        const token = getCookie(COOKIE_TOKEN);
         if (!token || typeof token !== "string") return null;
 
         const payload = decodeJwt(token);
         if (!payload) return null;
 
-        if (payload.exp && Date.now() / 1000 >= payload.exp) return null;
+        if (payload.exp && Date.now() / 1000 >= payload.exp) {
+            deleteCookie(COOKIE_TOKEN);
+            return null;
+        }
 
         const user = toAuthUserFromJwt(token);
         if (!user) return null;
@@ -136,7 +159,7 @@ export function getCurrentSession(): { token: string; user: AuthUser } | null {
 }
 
 export function logout() {
-    localStorage.removeItem(LS_SESSION);
+    deleteCookie(COOKIE_TOKEN);
 }
 
 export async function registerReader(email: string, password: string) {
@@ -152,7 +175,7 @@ export async function registerReader(email: string, password: string) {
     const token = extractToken(payload);
     if (!token) throw new Error("TOKEN_NOT_FOUND");
 
-    localStorage.setItem(LS_SESSION, JSON.stringify({ token }));
+    setCookie(COOKIE_TOKEN, token);
 
     const user = toAuthUserFromJwt(token);
     if (!user) throw new Error("INVALID_TOKEN");
@@ -172,7 +195,7 @@ export async function login(email: string, password: string) {
     const token = extractToken(payload);
     if (!token) throw new Error("TOKEN_NOT_FOUND");
 
-    localStorage.setItem(LS_SESSION, JSON.stringify({ token }));
+    setCookie(COOKIE_TOKEN, token);
 
     const user = toAuthUserFromJwt(token);
     if (!user) throw new Error("INVALID_TOKEN");
