@@ -72,10 +72,13 @@ export default function BookingsPage() {
                         <input
                             value={q}
                             onChange={(e) => setQ(e.target.value)}
-                            placeholder="bookingId / readerId / materialId / title…"
+                            placeholder="loanId / userId / bookId / libraryId / status…"
                             className="mt-1 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none
                          focus:border-brand-300 focus:ring-4 focus:ring-brand-200/40"
                         />
+                        <div className="mt-1 text-xs text-slate-500">
+                            Поиск выполняется на сервере и учитывает только поля займа: id, userId, bookId, libraryId и status.
+                        </div>
                     </label>
 
                     <label className="md:col-span-4 block">
