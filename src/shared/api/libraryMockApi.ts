@@ -282,3 +282,35 @@ export async function listAllMaterials(): Promise<MaterialCardDto[]> {
 export async function upsertMaterial(_input: MaterialCardDto): Promise<MaterialCardDto> {
     throw new Error("NOT_IMPLEMENTED");
 }
+
+export async function getMyLibrarian(): Promise<{ id: number; libraryId: number | null }> {
+    return await http<{ id: number; userId?: number; libraryId: number | null }>(`/librarians/me`);
+}
+
+export async function listBookInventoriesRaw(): Promise<BookInventoryDTO[]> {
+    return await http<BookInventoryDTO[]>(
+        `/book-inventories?page=1&size=10000&sortBy=id&sortDir=asc`
+    );
+}
+
+export async function createBookInventory(req: {
+    bookId: number;
+    libraryId: number;
+    totalCopies: number;
+    availableCopies: number;
+}): Promise<BookInventoryDTO> {
+    return await http<BookInventoryDTO>(`/book-inventories`, {
+        method: "POST",
+        body: JSON.stringify(req),
+    });
+}
+
+export async function patchBookInventory(
+    id: number,
+    req: { totalCopies: number; availableCopies: number }
+): Promise<BookInventoryDTO> {
+    return await http<BookInventoryDTO>(`/book-inventories/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(req),
+    });
+}
