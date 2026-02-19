@@ -203,3 +203,8 @@ export async function cancelBookingByStaff(params: { bookingId: string }) {
     await http(`/loans/${params.bookingId}/cancel`, { method: "POST" });
     return { ok: true };
 }
+
+export async function approveBookingByStaff(params: { bookingId: string }) {
+    await http(`/loans/${params.bookingId}/approve`, { method: "POST" });
+    return { ok: true };
+}
