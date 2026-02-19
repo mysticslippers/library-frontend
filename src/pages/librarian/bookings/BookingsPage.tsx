@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import StatusBadge from "../../../shared/ui/StatusBadge";
-import { cancelBookingByStaff, listBookingsForStaff, type StaffBookingRow } from "@/shared/api/bookingsMockApi";
+import {
+    approveBookingByStaff,
+    cancelBookingByStaff,
+    listBookingsForStaff,
+    type StaffBookingRow,
+} from "@/shared/api/bookingsMockApi";
 import { issueFromBooking } from "@/shared/api/issuancesMockApi";
 
 export default function BookingsPage() {
@@ -28,6 +33,18 @@ export default function BookingsPage() {
             load();
         } catch (e: any) {
             alert(`Не удалось оформить выдачу: ${String(e?.message ?? "")}`);
+        } finally {
+            setBusyId(null);
+        }
+    };
+
+    const onApprove = async (row: StaffBookingRow) => {
+        try {
+            setBusyId(row.id);
+            await approveBookingByStaff({ bookingId: row.id });
+            load();
+        } catch (e: any) {
+            alert(`Не удалось подтвердить бронь: ${String(e?.message ?? "")}`);
         } finally {
             setBusyId(null);
         }
@@ -148,7 +165,8 @@ export default function BookingsPage() {
                             <tbody>
                             {items.map((x) => {
                                 const disabled = busyId === x.id;
-                                const canIssue = x.status === "PENDING" || x.status === "RESERVED";
+                                const canApprove = x.status === "PENDING";
+                                const canIssue = x.status === "RESERVED";
                                 const canCancel = x.status === "PENDING" || x.status === "RESERVED";
 
                                 return (
@@ -163,6 +181,15 @@ export default function BookingsPage() {
                                         </td>
                                         <td className="py-3 pr-2">
                                             <div className="flex justify-end gap-2">
+                                                <button
+                                                    disabled={disabled || !canApprove}
+                                                    onClick={() => onApprove(x)}
+                                                    className="rounded-2xl border border-emerald-200 px-3 py-2 font-semibold text-emerald-700
+                                       hover:bg-emerald-50 transition disabled:opacity-60"
+                                                >
+                                                    {busyId === x.id ? "…" : "Подтвердить"}
+                                                </button>
+
                                                 <button
                                                     disabled={disabled || !canIssue}
                                                     onClick={() => onIssue(x)}
