@@ -44,9 +44,9 @@ export default function IssuancesPage() {
             <div className="flex items-end justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold">
-            <span className="bg-gradient-to-r from-brand-700 to-brand-500 bg-clip-text text-transparent">
-              Выдачи
-            </span>
+                        <span className="bg-gradient-to-r from-brand-700 to-brand-500 bg-clip-text text-transparent">
+                            Выдачи
+                        </span>
                     </h1>
                     <p className="mt-1 text-slate-600">Список выдач и быстрый возврат.</p>
                 </div>
@@ -66,10 +66,13 @@ export default function IssuancesPage() {
                         <input
                             value={q}
                             onChange={(e) => setQ(e.target.value)}
-                            placeholder="issuanceId / bookingId / readerId / title…"
+                            placeholder="loanId / userId / bookId / libraryId / status…"
                             className="mt-1 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none
                          focus:border-brand-300 focus:ring-4 focus:ring-brand-200/40"
                         />
+                        <div className="mt-1 text-xs text-slate-500">
+                            Поиск выполняется на сервере и учитывает только поля займа: id, userId, bookId, libraryId и status.
+                        </div>
                     </label>
 
                     <label className="md:col-span-4 block">
@@ -146,7 +149,13 @@ export default function IssuancesPage() {
                                         <td className="py-3 pr-4 font-semibold text-slate-900">{x.materialTitle}</td>
                                         <td className="py-3 pr-4 font-mono text-xs text-slate-700">{x.readerId}</td>
                                         <td className="py-3 pr-4 text-slate-700">{x.issuanceDate}</td>
-                                        <td className={`py-3 pr-4 ${x.status === "OVERDUE" ? "text-red-600 font-semibold" : "text-slate-700"}`}>
+                                        <td
+                                            className={`py-3 pr-4 ${
+                                                x.status === "OVERDUE"
+                                                    ? "text-red-600 font-semibold"
+                                                    : "text-slate-700"
+                                            }`}
+                                        >
                                             {x.returnDeadline}
                                         </td>
                                         <td className="py-3 pr-4">
