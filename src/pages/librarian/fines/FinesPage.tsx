@@ -58,9 +58,9 @@ export default function FinesPage() {
             <div className="flex items-end justify-between gap-4">
                 <div>
                     <h1 className="text-3xl font-bold">
-            <span className="bg-gradient-to-r from-brand-700 to-brand-500 bg-clip-text text-transparent">
-              Штрафы
-            </span>
+                        <span className="bg-gradient-to-r from-brand-700 to-brand-500 bg-clip-text text-transparent">
+                            Штрафы
+                        </span>
                     </h1>
                     <p className="mt-1 text-slate-600">
                         Неоплачено: <b>{totalUnpaid.toFixed(2)} ₽</b>
@@ -82,10 +82,13 @@ export default function FinesPage() {
                         <input
                             value={q}
                             onChange={(e) => setQ(e.target.value)}
-                            placeholder="fineId / readerId / issuanceId / описание…"
+                            placeholder="fineId / readerId / issuanceId / description…"
                             className="mt-1 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none
                          focus:border-brand-300 focus:ring-4 focus:ring-brand-200/40"
                         />
+                        <div className="mt-1 text-xs text-slate-500">
+                            Поиск выполняется на сервере по полям штрафа: id, readerId, issuanceId и description. Статус PAID включает оплаченные и списанные.
+                        </div>
                     </label>
 
                     <label className="md:col-span-4 block">
@@ -162,7 +165,9 @@ export default function FinesPage() {
                                         <td className="py-3 pr-4 font-mono text-xs text-slate-700">{x.issuanceId}</td>
                                         <td className="py-3 pr-4 text-slate-700">
                                             {x.description}
-                                            {x.writtenOff ? <span className="ml-2 text-xs text-slate-500">(списано)</span> : null}
+                                            {x.writtenOff ? (
+                                                <span className="ml-2 text-xs text-slate-500">(списано)</span>
+                                            ) : null}
                                         </td>
                                         <td className="py-3 pr-4 text-slate-700">{(x.amount ?? 0).toFixed(2)} ₽</td>
                                         <td className="py-3 pr-4">
