@@ -1,5 +1,6 @@
 import type { MaterialCardDto } from "../types/library";
 import { getCurrentSession } from "./authApi";
+import { formatLibraryAddress, getLibraryAddressMap } from "./librariesApi";
 
 const API_URL = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8080";
 
@@ -115,6 +116,9 @@ function matchesFreeText(card: MaterialCardDto, q: string): boolean {
 
 let authorsCache: Map<number, string> | null = null;
 let inventoriesCache: Map<number, { total: number; available: number }> | null = null;
+let inventoriesPerLibraryCache:
+    | Map<number, Array<{ libraryId: number; total: number; available: number }>>
+    | null = null;
 
 async function loadAllAuthors(): Promise<Map<number, string>> {
     if (authorsCache) return authorsCache;
@@ -151,10 +155,36 @@ async function loadAllInventories(): Promise<Map<number, { total: number; availa
     return map;
 }
 
+async function loadInventoriesPerLibrary(): Promise<
+    Map<number, Array<{ libraryId: number; total: number; available: number }>>
+> {
+    if (inventoriesPerLibraryCache) return inventoriesPerLibraryCache;
+
+    const list = await http<BookInventoryDTO[]>(
+        `/book-inventories?page=1&size=10000&sortBy=id&sortDir=asc`
+    );
+
+    const map = new Map<number, Array<{ libraryId: number; total: number; available: number }>>();
+    for (const inv of list) {
+        const arr = map.get(inv.bookId) ?? [];
+        arr.push({
+            libraryId: inv.libraryId,
+            total: inv.totalCopies ?? 0,
+            available: inv.availableCopies ?? 0,
+        });
+        map.set(inv.bookId, arr);
+    }
+
+    inventoriesPerLibraryCache = map;
+    return map;
+}
+
 function mapBookToCard(
     b: BookDTO,
     authorsById: Map<number, string>,
-    invByBookId: Map<number, { total: number; available: number }>
+    invByBookId: Map<number, { total: number; available: number }>,
+    invPerLibByBookId: Map<number, Array<{ libraryId: number; total: number; available: number }>>,
+    libAddressById: Map<string, string>
 ): MaterialCardDto {
     const authors = (b.authorIds ?? [])
         .map((id) => authorsById.get(id))
@@ -164,6 +194,15 @@ function mapBookToCard(
     const inv = invByBookId.get(b.id);
     const totalCopies = inv?.total ?? 0;
     const availableCopies = inv?.available ?? 0;
+
+    const perLib = (invPerLibByBookId.get(b.id) ?? [])
+        .map((x) => ({
+            libraryId: String(x.libraryId),
+            address: libAddressById.get(String(x.libraryId)) ?? formatLibraryAddress(null),
+            totalCopies: x.total,
+            availableCopies: x.available,
+        }))
+        .sort((a, b) => b.availableCopies - a.availableCopies);
 
     return {
         id: String(b.id),
@@ -175,6 +214,7 @@ function mapBookToCard(
         coverUrl: null,
         totalCopies,
         availableCopies,
+        libraries: perLib,
     };
 }
 
@@ -212,13 +252,17 @@ export async function getCatalog(query: CatalogQuery): Promise<MaterialCardDto[]
 
     if (query.genre) params.set("filter.genre", query.genre.trim());
 
-    const [books, authorsById, invByBookId] = await Promise.all([
+    const [books, authorsById, invByBookId, invPerLibByBookId, libAddressById] = await Promise.all([
         http<BookDTO[]>(`/books?${params.toString()}`),
         loadAllAuthors(),
         loadAllInventories(),
+        loadInventoriesPerLibrary(),
+        getLibraryAddressMap(),
     ]);
 
-    let cards = books.map((b) => mapBookToCard(b, authorsById, invByBookId));
+    let cards = books.map((b) =>
+        mapBookToCard(b, authorsById, invByBookId, invPerLibByBookId, libAddressById)
+    );
 
     if (query.q) {
         cards = cards.filter((x) => matchesFreeText(x, query.q!));
@@ -258,25 +302,33 @@ export async function getCatalog(query: CatalogQuery): Promise<MaterialCardDto[]
 }
 
 export async function getMaterialCard(id: string): Promise<MaterialCardDto | null> {
-    const [books, authorsById, invByBookId] = await Promise.all([
+    const [books, authorsById, invByBookId, invPerLibByBookId, libAddressById] = await Promise.all([
         http<BookDTO[]>(`/books?page=1&size=10000&sortBy=title&sortDir=asc`),
         loadAllAuthors(),
         loadAllInventories(),
+        loadInventoriesPerLibrary(),
+        getLibraryAddressMap(),
     ]);
 
     const bookId = Number(id);
     const b = books.find((x) => x.id === bookId);
-    return b ? mapBookToCard(b, authorsById, invByBookId) : null;
+    return b
+        ? mapBookToCard(b, authorsById, invByBookId, invPerLibByBookId, libAddressById)
+        : null;
 }
 
 export async function listAllMaterials(): Promise<MaterialCardDto[]> {
-    const [books, authorsById, invByBookId] = await Promise.all([
+    const [books, authorsById, invByBookId, invPerLibByBookId, libAddressById] = await Promise.all([
         http<BookDTO[]>(`/books?page=1&size=10000&sortBy=title&sortDir=asc`),
         loadAllAuthors(),
         loadAllInventories(),
+        loadInventoriesPerLibrary(),
+        getLibraryAddressMap(),
     ]);
 
-    return books.map((b) => mapBookToCard(b, authorsById, invByBookId));
+    return books.map((b) =>
+        mapBookToCard(b, authorsById, invByBookId, invPerLibByBookId, libAddressById)
+    );
 }
 
 export async function upsertMaterial(_input: MaterialCardDto): Promise<MaterialCardDto> {
