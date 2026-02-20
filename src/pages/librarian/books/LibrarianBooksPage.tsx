@@ -263,7 +263,6 @@ export default function LibrarianBooksPage() {
 
         setSaving(true);
         try {
-            // ✅ page=0 (иначе можно не увидеть нужную запись)
             const invs = await http<BookInventoryDTO[]>(
                 `/book-inventories?page=0&size=100000&sortBy=id&sortDir=asc`
             );
