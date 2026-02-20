@@ -5,6 +5,13 @@ export default function MaterialCard({ item, from }: { item: MaterialCardDto; fr
     const available = item.availableCopies ?? 0;
     const isAvailable = available > 0;
 
+    const libs = item.libraries ?? [];
+    const primaryLib =
+        libs.find((l) => (l.availableCopies ?? 0) > 0) ??
+        libs[0] ??
+        null;
+    const moreLibsCount = Math.max(0, libs.length - (primaryLib ? 1 : 0));
+
     return (
         <div className="rounded-2xl border bg-white p-4 shadow-sm hover:shadow transition-shadow">
             <div className="flex items-start gap-3">
@@ -21,14 +28,21 @@ export default function MaterialCard({ item, from }: { item: MaterialCardDto; fr
                         {(item.genre ?? "—")}
                         {item.year ? ` · ${item.year}` : ""}
                     </div>
+
+                    {primaryLib ? (
+                        <div className="mt-1 text-xs text-slate-500 truncate">
+                            {primaryLib.address}
+                            {moreLibsCount ? ` · +${moreLibsCount} ещё` : ""}
+                        </div>
+                    ) : null}
                 </div>
             </div>
 
             <div className="mt-4 flex items-center justify-between">
                 <div className="text-sm">
-          <span className={`font-semibold ${isAvailable ? "text-emerald-700" : "text-red-600"}`}>
-            {isAvailable ? `Доступно: ${available}` : "Нет в наличии"}
-          </span>
+                    <span className={`font-semibold ${isAvailable ? "text-emerald-700" : "text-red-600"}`}>
+                        {isAvailable ? `Доступно: ${available}` : "Нет в наличии"}
+                    </span>
                     <span className="text-slate-500"> / {item.totalCopies}</span>
                 </div>
 
