@@ -34,7 +34,7 @@ export default function ForgotPasswordForm() {
             <div className="space-y-5">
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
                     Если email <span className="font-semibold">{sentTo}</span> существует, мы отправили ссылку для сброса
-                    пароля. Проверь «Входящие» и «Спам».
+                    пароля. Проверьте «Входящие» и «Спам».
                 </div>
 
                 <button
