@@ -12,6 +12,44 @@ import { getLibraryAddressMap } from "@/shared/api/librariesApi";
 import { getMyLibrarian } from "@/shared/api/libraryMockApi";
 import type { RootState } from "@/app/store";
 
+function normalizeSearchQuery(q: string): string {
+    const raw = (q ?? "").trim();
+    if (!raw) return "";
+
+    const lower = raw.toLowerCase();
+
+    const map: Array<[RegExp, "OPEN" | "OVERDUE" | "RETURNED"]> = [
+        [/^открыт(а|о|ые|ый)?$/i, "OPEN"],
+
+        [/^просрочен(о|а|ые|ый)?$/i, "OVERDUE"],
+        [/^просрочка$/i, "OVERDUE"],
+
+        [/^возвращен(о|а|ые|ый)?$/i, "RETURNED"],
+        [/^возврат$/i, "RETURNED"],
+        [/^вернули$/i, "RETURNED"],
+    ];
+
+    for (const [re, code] of map) {
+        if (re.test(lower)) return code;
+    }
+
+    const containsMap: Array<[RegExp, "OPEN" | "OVERDUE" | "RETURNED"]> = [
+        [/\bоткрыт(а|о|ые|ый)?\b/iu, "OPEN"],
+        [/\bпросрочен(о|а|ые|ый)?\b/iu, "OVERDUE"],
+        [/\bпросрочка\b/iu, "OVERDUE"],
+        [/\bвозвращен(о|а|ые|ый)?\b/iu, "RETURNED"],
+        [/\bвозврат\b/iu, "RETURNED"],
+        [/\bвернули\b/iu, "RETURNED"],
+    ];
+
+    let out = raw;
+    for (const [re, code] of containsMap) {
+        out = out.replace(re, code);
+    }
+
+    return out;
+}
+
 export default function IssuancesPage() {
     const user = useSelector((s: RootState) => s.auth.user);
 
@@ -29,8 +67,9 @@ export default function IssuancesPage() {
         nextQ: string = q,
         nextStatus: "" | "OPEN" | "OVERDUE" | "RETURNED" = status
     ) => {
+        const qNormalized = normalizeSearchQuery(nextQ);
         setLoading(true);
-        listIssuancesForStaff({ q: nextQ, status: nextStatus })
+        listIssuancesForStaff({ q: qNormalized, status: nextStatus })
             .then(setItems)
             .finally(() => setLoading(false));
     };
@@ -112,12 +151,13 @@ export default function IssuancesPage() {
                         <input
                             value={q}
                             onChange={(e) => setQ(e.target.value)}
-                            placeholder="loanId / userId / bookId / libraryId / status…"
+                            placeholder='loanId / userId / bookId / libraryId / status… (можно: "открыта", "просрочено", "возвращено")'
                             className="mt-1 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none
                          focus:border-brand-300 focus:ring-4 focus:ring-brand-200/40"
                         />
                         <div className="mt-1 text-xs text-slate-500">
                             Поиск выполняется на сервере и учитывает только поля займа: id, userId, bookId, libraryId и status.
+                            Статусы можно вводить по-русски (открыта/просрочено/возвращено) или по-английски (OPEN/OVERDUE/RETURNED).
                         </div>
                     </label>
 
@@ -130,9 +170,9 @@ export default function IssuancesPage() {
                          focus:border-brand-300 focus:ring-4 focus:ring-brand-200/40"
                         >
                             <option value="">Все</option>
-                            <option value="OPEN">OPEN</option>
-                            <option value="OVERDUE">OVERDUE</option>
-                            <option value="RETURNED">RETURNED</option>
+                            <option value="OPEN">Открыта</option>
+                            <option value="OVERDUE">Просрочено</option>
+                            <option value="RETURNED">Возвращено</option>
                         </select>
                     </label>
                 </div>
