@@ -54,7 +54,7 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
         headers: {
             "Content-Type": "application/json",
             ...(init?.headers ?? {}),
-            ...getAuthHeaders(), // Authorization: Bearer <JWT>
+            ...getAuthHeaders(),
         },
     });
 
