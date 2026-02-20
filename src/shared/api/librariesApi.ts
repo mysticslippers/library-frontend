@@ -19,6 +19,49 @@ export type LibraryDTO = {
     bookIds?: number[];
 };
 
+export function formatLibraryAddress(address?: Record<string, any> | null): string {
+    if (!address) return "—";
+
+    // Most backends keep address fields in some variation of these keys.
+    const order = [
+        "country",
+        "region",
+        "state",
+        "province",
+        "city",
+        "settlement",
+        "street",
+        "house",
+        "building",
+        "block",
+        "apartment",
+        "zip",
+        "postalCode",
+    ];
+
+    const parts: string[] = [];
+    for (const k of order) {
+        const v = (address as any)[k];
+        if (v === null || v === undefined) continue;
+        const s = String(v).trim();
+        if (!s) continue;
+        parts.push(s);
+    }
+
+    if (!parts.length) {
+        for (const [k, v] of Object.entries(address)) {
+            if (order.includes(k)) continue;
+            if (v === null || v === undefined) continue;
+            if (typeof v === "object") continue;
+            const s = String(v).trim();
+            if (!s) continue;
+            parts.push(s);
+        }
+    }
+
+    return parts.length ? parts.join(", ") : "—";
+}
+
 function authHeader(): Record<string, string> {
     const s = getCurrentSession();
     return s?.token ? { Authorization: `Bearer ${s.token}` } : {};
@@ -54,6 +97,24 @@ export async function listLibraries(): Promise<LibraryDTO[]> {
     return await http<LibraryDTO[]>(
         `/libraries?page=1&size=1000&sortBy=id&sortDir=asc`
     );
+}
+
+let librariesCache: LibraryDTO[] | null = null;
+let librariesAddressMapCache: Map<string, string> | null = null;
+
+export async function getLibraries(): Promise<LibraryDTO[]> {
+    if (librariesCache) return librariesCache;
+    librariesCache = await listLibraries();
+    return librariesCache;
+}
+
+export async function getLibraryAddressMap(): Promise<Map<string, string>> {
+    if (librariesAddressMapCache) return librariesAddressMapCache;
+    const libs = await getLibraries();
+    const map = new Map<string, string>();
+    for (const l of libs) map.set(String(l.id), formatLibraryAddress(l.address));
+    librariesAddressMapCache = map;
+    return map;
 }
 
 let defaultLibraryIdCache: string | null = null;
