@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSelector } from "react-redux";
+
 import StatusBadge from "../../../shared/ui/StatusBadge";
 import {
     approveBookingByStaff,
@@ -8,14 +10,21 @@ import {
 } from "@/shared/api/bookingsMockApi";
 import { issueFromBooking } from "@/shared/api/issuancesMockApi";
 import { getLibraryAddressMap } from "@/shared/api/librariesApi";
+import { getMyLibrarian } from "@/shared/api/libraryMockApi";
+import type { RootState } from "@/app/store";
 
 export default function BookingsPage() {
+    const user = useSelector((s: RootState) => s.auth.user);
+
     const [q, setQ] = useState("");
     const [status, setStatus] = useState("");
     const [items, setItems] = useState<StaffBookingRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [busyId, setBusyId] = useState<string | null>(null);
+
     const [libAddress, setLibAddress] = useState<Map<string, string>>(new Map());
+
+    const [myLibraryId, setMyLibraryId] = useState<string | null>(user?.libraryId ?? null);
 
     const load = (nextQ: string = q, nextStatus: string = status) => {
         setLoading(true);
@@ -37,6 +46,30 @@ export default function BookingsPage() {
             alive = false;
         };
     }, []);
+
+    useEffect(() => {
+        if (user?.libraryId) {
+            setMyLibraryId(user.libraryId);
+            return;
+        }
+
+        let alive = true;
+        getMyLibrarian()
+            .then((me) => {
+                if (!alive) return;
+                setMyLibraryId(me?.libraryId != null ? String(me.libraryId) : null);
+            })
+            .catch(() => {
+                if (!alive) return;
+                setMyLibraryId(null);
+            });
+
+        return () => {
+            alive = false;
+        };
+    }, [user?.libraryId]);
+
+    const hasMyLibrary = useMemo(() => Boolean(myLibraryId), [myLibraryId]);
 
     const onIssue = async (row: StaffBookingRow) => {
         try {
@@ -182,6 +215,9 @@ export default function BookingsPage() {
                                 const canIssue = x.status === "RESERVED";
                                 const canCancel = x.status === "PENDING" || x.status === "RESERVED";
 
+                                const isMine = myLibraryId ? String(x.libraryId) === String(myLibraryId) : false;
+                                const canActHere = !hasMyLibrary || isMine;
+
                                 return (
                                     <tr key={x.id} className="border-b last:border-b-0">
                                         <td className="py-3 pr-4 font-mono text-xs text-slate-700">{x.id}</td>
@@ -190,7 +226,22 @@ export default function BookingsPage() {
 
                                         <td className="py-3 pr-4 text-slate-700">
                                             <div className="min-w-[220px]">
-                                                <div className="text-xs text-slate-500 font-mono">{x.libraryId}</div>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="text-xs text-slate-500 font-mono">{x.libraryId}</div>
+
+                                                    {hasMyLibrary ? (
+                                                        isMine ? (
+                                                            <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                                                                    моя
+                                                                </span>
+                                                        ) : (
+                                                            <span className="rounded-full bg-slate-50 border border-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                                                                    чужая
+                                                                </span>
+                                                        )
+                                                    ) : null}
+                                                </div>
+
                                                 <div
                                                     className="text-sm text-slate-700 truncate"
                                                     title={libAddress.get(x.libraryId) ?? x.libraryId}
@@ -209,7 +260,7 @@ export default function BookingsPage() {
                                         <td className="py-3 pr-2">
                                             <div className="flex justify-end gap-2">
                                                 <button
-                                                    disabled={disabled || !canApprove}
+                                                    disabled={disabled || !canApprove || !canActHere}
                                                     onClick={() => onApprove(x)}
                                                     className="rounded-2xl border border-emerald-200 px-3 py-2 font-semibold text-emerald-700
                                        hover:bg-emerald-50 transition disabled:opacity-60"
@@ -218,7 +269,7 @@ export default function BookingsPage() {
                                                 </button>
 
                                                 <button
-                                                    disabled={disabled || !canIssue}
+                                                    disabled={disabled || !canIssue || !canActHere}
                                                     onClick={() => onIssue(x)}
                                                     className="rounded-2xl bg-gradient-to-r from-brand-600 to-brand-500 px-3 py-2 font-semibold text-white
                                        hover:brightness-105 transition disabled:opacity-60"
@@ -227,7 +278,7 @@ export default function BookingsPage() {
                                                 </button>
 
                                                 <button
-                                                    disabled={disabled || !canCancel}
+                                                    disabled={disabled || !canCancel || !canActHere}
                                                     onClick={() => onCancel(x)}
                                                     className="rounded-2xl border border-red-200 px-3 py-2 font-semibold text-red-700
                                        hover:bg-red-50 transition disabled:opacity-60"
@@ -235,6 +286,12 @@ export default function BookingsPage() {
                                                     Отменить
                                                 </button>
                                             </div>
+
+                                            {hasMyLibrary && !isMine ? (
+                                                <div className="mt-1 text-xs text-slate-500 text-right">
+                                                    Действия доступны только для своей библиотеки.
+                                                </div>
+                                            ) : null}
                                         </td>
                                     </tr>
                                 );
