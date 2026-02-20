@@ -7,6 +7,7 @@ import {
     type StaffBookingRow,
 } from "@/shared/api/bookingsMockApi";
 import { issueFromBooking } from "@/shared/api/issuancesMockApi";
+import { getLibraryAddressMap } from "@/shared/api/librariesApi";
 
 export default function BookingsPage() {
     const [q, setQ] = useState("");
@@ -14,6 +15,7 @@ export default function BookingsPage() {
     const [items, setItems] = useState<StaffBookingRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [busyId, setBusyId] = useState<string | null>(null);
+    const [libAddress, setLibAddress] = useState<Map<string, string>>(new Map());
 
     const load = (nextQ: string = q, nextStatus: string = status) => {
         setLoading(true);
@@ -24,6 +26,16 @@ export default function BookingsPage() {
 
     useEffect(() => {
         load();
+    }, []);
+
+    useEffect(() => {
+        let alive = true;
+        getLibraryAddressMap()
+            .then((m) => alive && setLibAddress(m))
+            .catch(() => alive && setLibAddress(new Map()));
+        return () => {
+            alive = false;
+        };
     }, []);
 
     const onIssue = async (row: StaffBookingRow) => {
@@ -155,6 +167,7 @@ export default function BookingsPage() {
                                 <th className="py-3 pr-4">ID</th>
                                 <th className="py-3 pr-4">Книга</th>
                                 <th className="py-3 pr-4">Reader</th>
+                                <th className="py-3 pr-4">Библиотека</th>
                                 <th className="py-3 pr-4">Дата</th>
                                 <th className="py-3 pr-4">Дедлайн</th>
                                 <th className="py-3 pr-4">Статус</th>
@@ -174,11 +187,25 @@ export default function BookingsPage() {
                                         <td className="py-3 pr-4 font-mono text-xs text-slate-700">{x.id}</td>
                                         <td className="py-3 pr-4 font-semibold text-slate-900">{x.materialTitle}</td>
                                         <td className="py-3 pr-4 font-mono text-xs text-slate-700">{x.readerId}</td>
+
+                                        <td className="py-3 pr-4 text-slate-700">
+                                            <div className="min-w-[220px]">
+                                                <div className="text-xs text-slate-500 font-mono">{x.libraryId}</div>
+                                                <div
+                                                    className="text-sm text-slate-700 truncate"
+                                                    title={libAddress.get(x.libraryId) ?? x.libraryId}
+                                                >
+                                                    {libAddress.get(x.libraryId) ?? "—"}
+                                                </div>
+                                            </div>
+                                        </td>
+
                                         <td className="py-3 pr-4 text-slate-700">{x.bookingDate}</td>
                                         <td className="py-3 pr-4 text-slate-700">{x.bookingDeadline}</td>
                                         <td className="py-3 pr-4">
                                             <StatusBadge value={String(x.status)} />
                                         </td>
+
                                         <td className="py-3 pr-2">
                                             <div className="flex justify-end gap-2">
                                                 <button
