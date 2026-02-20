@@ -33,7 +33,6 @@ export default function ReaderCatalogPage() {
     const [items, setItems] = useState<MaterialCardDto[]>([]);
     const [loading, setLoading] = useState(true);
     const [genres, setGenres] = useState<string[]>([]);
-    const [years, setYears] = useState<number[]>([]);
 
     const [allMaterials, setAllMaterials] = useState<MaterialCardDto[] | null>(null);
     const [qDraft, setQDraft] = useState(q);
@@ -62,7 +61,6 @@ export default function ReaderCatalogPage() {
     useEffect(() => {
         getCatalogFacets().then((x) => {
             setGenres(["", ...x.genres]);
-            setYears(x.years);
         });
     }, []);
 
@@ -124,7 +122,8 @@ export default function ReaderCatalogPage() {
     }, [q, author, genre, yearFrom, yearTo, availableOnly, sort]);
 
     const found = loading ? "..." : String(items.length);
-    const yearOptions = useMemo(() => ["", ...years.map(String)], [years]);
+
+    const normalizeYearInput = (v: string) => v.replace(/[^0-9]/g, "").slice(0, 4);
 
     const titleSuggestions = useMemo(() => {
         const src = allMaterials;
@@ -347,32 +346,30 @@ export default function ReaderCatalogPage() {
 
                     <label className="md:col-span-3 block">
                         <div className="text-sm font-medium text-slate-700">Год (от)</div>
-                        <select
-                            value={yearFrom ? String(yearFrom) : ""}
-                            onChange={(e) => setParam("yf", e.target.value || undefined)}
+                        <input
+                            inputMode="numeric"
+                            value={sp.get("yf") ?? ""}
+                            onChange={(e) => {
+                                const v = normalizeYearInput(e.target.value);
+                                setParam("yf", v || undefined);
+                            }}
+                            placeholder="Например: 1990"
                             className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 outline-none focus:ring-2 focus:ring-brand-200 bg-white"
-                        >
-                            {yearOptions.map((y) => (
-                                <option key={y || "_any"} value={y}>
-                                    {y ? y : "Любой"}
-                                </option>
-                            ))}
-                        </select>
+                        />
                     </label>
 
                     <label className="md:col-span-3 block">
                         <div className="text-sm font-medium text-slate-700">Год (до)</div>
-                        <select
-                            value={yearTo ? String(yearTo) : ""}
-                            onChange={(e) => setParam("yt", e.target.value || undefined)}
+                        <input
+                            inputMode="numeric"
+                            value={sp.get("yt") ?? ""}
+                            onChange={(e) => {
+                                const v = normalizeYearInput(e.target.value);
+                                setParam("yt", v || undefined);
+                            }}
+                            placeholder="Например: 2024"
                             className="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 outline-none focus:ring-2 focus:ring-brand-200 bg-white"
-                        >
-                            {yearOptions.map((y) => (
-                                <option key={y || "_any2"} value={y}>
-                                    {y ? y : "Любой"}
-                                </option>
-                            ))}
-                        </select>
+                        />
                     </label>
 
                     <label className="md:col-span-3 block">
