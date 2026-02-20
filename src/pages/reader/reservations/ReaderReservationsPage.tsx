@@ -7,12 +7,14 @@ import { Link } from "react-router-dom";
 import PageHeader from "@/shared/ui/PageHeader";
 import Surface from "@/shared/ui/Surface";
 import StatusBadge from "@/shared/ui/StatusBadge";
+import { getLibraryAddressMap } from "@/shared/api/librariesApi";
 
 export default function ReaderReservationsPage() {
     const user = useSelector((s: RootState) => s.auth.user);
     const [items, setItems] = useState<BookingViewDto[]>([]);
     const [loading, setLoading] = useState(true);
     const [busyId, setBusyId] = useState<string | null>(null);
+    const [libAddress, setLibAddress] = useState<Map<string, string>>(new Map());
 
     const load = () => {
         if (!user) return;
@@ -25,6 +27,16 @@ export default function ReaderReservationsPage() {
     useEffect(() => {
         load();
     }, [user?.id]);
+
+    useEffect(() => {
+        let alive = true;
+        getLibraryAddressMap()
+            .then((m) => alive && setLibAddress(m))
+            .catch(() => alive && setLibAddress(new Map()));
+        return () => {
+            alive = false;
+        };
+    }, []);
 
     const onCancel = async (bookingId: string) => {
         if (!user) return;
@@ -76,6 +88,13 @@ export default function ReaderReservationsPage() {
                                                 <div className="mt-1 text-sm text-slate-600">
                                                     Дата брони: {b.bookingDate} · Дедлайн:{" "}
                                                     <span className="font-semibold">{b.bookingDeadline}</span>
+                                                </div>
+
+                                                <div className="mt-1 text-sm text-slate-600">
+                                                    Библиотека:{" "}
+                                                    <span className="font-semibold">
+                                                        {libAddress.get(b.libraryId) ?? b.libraryId}
+                                                    </span>
                                                 </div>
 
                                                 {isActive ? (
