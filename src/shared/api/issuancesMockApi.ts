@@ -35,6 +35,8 @@ export type StaffIssuanceRow = {
     readerId: string;
     materialId: string;
     materialTitle: string;
+
+    libraryId: string;
 };
 
 function authHeader(): Record<string, string> {
@@ -169,6 +171,8 @@ export async function listIssuancesForStaff(params?: { q?: string; status?: "" |
             readerId: String(l.userId),
             materialId: String(l.bookId),
             materialTitle: m?.title ?? "Unknown",
+
+            libraryId: String(l.libraryId),
         });
     }
 
