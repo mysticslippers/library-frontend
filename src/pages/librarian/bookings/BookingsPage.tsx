@@ -101,6 +101,7 @@ export default function BookingsPage() {
         getMyLibrarian()
             .then((me) => {
                 if (!alive) return;
+                // IMPORTANT: if backend says libraryId is null => librarian has no access => actions must be disabled
                 setMyLibraryId(me?.libraryId != null ? String(me.libraryId) : null);
             })
             .catch(() => {
@@ -113,7 +114,7 @@ export default function BookingsPage() {
         };
     }, [user?.libraryId]);
 
-    const hasMyLibrary = useMemo(() => Boolean(myLibraryId), [myLibraryId]);
+    const hasMyLibrary = useMemo(() => myLibraryId != null, [myLibraryId]);
 
     const onIssue = async (row: StaffBookingRow) => {
         try {
@@ -161,6 +162,12 @@ export default function BookingsPage() {
                         </span>
                     </h1>
                     <p className="mt-1 text-slate-600">Поиск, фильтры и действия по бронированиям.</p>
+
+                    {!hasMyLibrary ? (
+                        <p className="mt-2 text-sm text-red-700">
+                            У вас не назначена библиотека. Действия “Подтвердить/Выдать/Отменить” недоступны, пока библиотекарь не привязан к библиотеке на сервере.
+                        </p>
+                    ) : null}
                 </div>
 
                 <button
@@ -260,7 +267,10 @@ export default function BookingsPage() {
                                 const canCancel = x.status === "PENDING" || x.status === "RESERVED";
 
                                 const isMine = myLibraryId ? String(x.libraryId) === String(myLibraryId) : false;
-                                const canActHere = !hasMyLibrary || isMine;
+
+                                // ✅ key fix:
+                                // If librarian has no library -> actions must be disabled (backend will 403 anyway)
+                                const canActHere = hasMyLibrary && isMine;
 
                                 return (
                                     <tr key={x.id} className="border-b last:border-b-0">
@@ -283,7 +293,11 @@ export default function BookingsPage() {
                                                                     чужая
                                                                 </span>
                                                         )
-                                                    ) : null}
+                                                    ) : (
+                                                        <span className="rounded-full bg-red-50 border border-red-200 px-2 py-0.5 text-xs font-semibold text-red-700">
+                                                            не назначена
+                                                        </span>
+                                                    )}
                                                 </div>
 
                                                 <div
@@ -331,7 +345,11 @@ export default function BookingsPage() {
                                                 </button>
                                             </div>
 
-                                            {hasMyLibrary && !isMine ? (
+                                            {!hasMyLibrary ? (
+                                                <div className="mt-1 text-xs text-red-600 text-right">
+                                                    Нельзя выполнять действия: библиотекарь не привязан к библиотеке.
+                                                </div>
+                                            ) : !isMine ? (
                                                 <div className="mt-1 text-xs text-slate-500 text-right">
                                                     Действия доступны только для своей библиотеки.
                                                 </div>
