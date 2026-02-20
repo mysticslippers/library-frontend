@@ -1,5 +1,5 @@
 import type { FineState } from "../types/library";
-import { getCurrentSession } from "./authApi";
+import { getAuthHeaders } from "./authApi";
 import type { MyIssuanceView } from "./issuancesMockApi";
 
 const API_URL = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8080";
@@ -33,18 +33,13 @@ export type StaffFineRow = {
     writtenOff?: boolean;
 };
 
-function authHeader(): Record<string, string> {
-    const s = getCurrentSession();
-    return s?.token ? { Authorization: `Bearer ${s.token}` } : {};
-}
-
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
     const res = await fetch(`${API_URL}${path}`, {
         ...init,
         headers: {
             "Content-Type": "application/json",
             ...(init?.headers ?? {}),
-            ...authHeader(),
+            ...getAuthHeaders(),
         },
     });
 
