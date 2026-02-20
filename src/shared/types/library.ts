@@ -45,6 +45,13 @@ export type MaterialCardDto = {
     coverUrl?: string | null;
     totalCopies: number;
     availableCopies?: number;
+
+    libraries?: Array<{
+        libraryId: string;
+        address: string;
+        totalCopies: number;
+        availableCopies: number;
+    }>;
 };
 
 export type BookingViewDto = {
