@@ -13,6 +13,48 @@ import { getLibraryAddressMap } from "@/shared/api/librariesApi";
 import { getMyLibrarian } from "@/shared/api/libraryMockApi";
 import type { RootState } from "@/app/store";
 
+function normalizeSearchQuery(q: string): string {
+    const raw = (q ?? "").trim();
+    if (!raw) return "";
+
+    const lower = raw.toLowerCase();
+
+    const map: Array<[RegExp, string]> = [
+        [/^выдано$/i, "ISSUED"],
+        [/^выда(н|но|ча|но\.)$/i, "ISSUED"],
+
+        [/^забронировано$/i, "RESERVED"],
+        [/^бронь$/i, "RESERVED"],
+        [/^резерв$/i, "RESERVED"],
+
+        [/^ожидает$/i, "PENDING"],
+        [/^в ожидании$/i, "PENDING"],
+        [/^ожидание$/i, "PENDING"],
+
+        [/^отменено$/i, "CANCELLED"],
+        [/^отмена$/i, "CANCELLED"],
+        [/^отмен(а|ён|ено)$/i, "CANCELLED"],
+    ];
+
+    for (const [re, code] of map) {
+        if (re.test(lower)) return code;
+    }
+
+    const containsMap: Array<[RegExp, string]> = [
+        [/\bвыдано\b/i, "ISSUED"],
+        [/\bзабронировано\b/i, "RESERVED"],
+        [/\bожидает\b/i, "PENDING"],
+        [/\bотменено\b/i, "CANCELLED"],
+    ];
+
+    let out = raw;
+    for (const [re, code] of containsMap) {
+        out = out.replace(re, code);
+    }
+
+    return out;
+}
+
 export default function BookingsPage() {
     const user = useSelector((s: RootState) => s.auth.user);
 
@@ -27,8 +69,10 @@ export default function BookingsPage() {
     const [myLibraryId, setMyLibraryId] = useState<string | null>(user?.libraryId ?? null);
 
     const load = (nextQ: string = q, nextStatus: string = status) => {
+        const qNormalized = normalizeSearchQuery(nextQ);
+
         setLoading(true);
-        listBookingsForStaff({ q: nextQ, status: nextStatus })
+        listBookingsForStaff({ q: qNormalized, status: nextStatus })
             .then(setItems)
             .finally(() => setLoading(false));
     };
@@ -134,12 +178,12 @@ export default function BookingsPage() {
                         <input
                             value={q}
                             onChange={(e) => setQ(e.target.value)}
-                            placeholder="loanId / userId / bookId / libraryId / status…"
+                            placeholder='loanId / userId / bookId / libraryId / status… (можно: "выдано", "забронировано")'
                             className="mt-1 w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none
                          focus:border-brand-300 focus:ring-4 focus:ring-brand-200/40"
                         />
                         <div className="mt-1 text-xs text-slate-500">
-                            Поиск выполняется на сервере и учитывает только поля займа: id, userId, bookId, libraryId и status.
+                            Поиск выполняется на сервере. Статусы можно вводить по-русски (выдано/забронировано/ожидает/отменено) или по-английски (ISSUED/RESERVED/PENDING/CANCELLED).
                         </div>
                     </label>
 
@@ -152,10 +196,10 @@ export default function BookingsPage() {
                          focus:border-brand-300 focus:ring-4 focus:ring-brand-200/40"
                         >
                             <option value="">Все</option>
-                            <option value="PENDING">PENDING</option>
-                            <option value="RESERVED">RESERVED</option>
-                            <option value="ISSUED">ISSUED</option>
-                            <option value="CANCELLED">CANCELLED</option>
+                            <option value="PENDING">Ожидает</option>
+                            <option value="RESERVED">Забронировано</option>
+                            <option value="ISSUED">Выдано</option>
+                            <option value="CANCELLED">Отменено</option>
                         </select>
                     </label>
                 </div>
