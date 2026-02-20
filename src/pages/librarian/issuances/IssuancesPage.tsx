@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSelector } from "react-redux";
+
 import StatusBadge from "../../../shared/ui/StatusBadge";
 import {
     listIssuancesForStaff,
@@ -6,12 +8,22 @@ import {
     type StaffIssuanceRow,
 } from "@/shared/api/issuancesMockApi";
 
+import { getLibraryAddressMap } from "@/shared/api/librariesApi";
+import { getMyLibrarian } from "@/shared/api/libraryMockApi";
+import type { RootState } from "@/app/store";
+
 export default function IssuancesPage() {
+    const user = useSelector((s: RootState) => s.auth.user);
+
     const [q, setQ] = useState("");
     const [status, setStatus] = useState<"" | "OPEN" | "OVERDUE" | "RETURNED">("");
     const [items, setItems] = useState<StaffIssuanceRow[]>([]);
     const [loading, setLoading] = useState(true);
     const [busyId, setBusyId] = useState<string | null>(null);
+
+    const [libAddress, setLibAddress] = useState<Map<string, string>>(new Map());
+
+    const [myLibraryId, setMyLibraryId] = useState<string | null>(user?.libraryId ?? null);
 
     const load = (
         nextQ: string = q,
@@ -26,6 +38,40 @@ export default function IssuancesPage() {
     useEffect(() => {
         load();
     }, []);
+
+    useEffect(() => {
+        let alive = true;
+        getLibraryAddressMap()
+            .then((m) => alive && setLibAddress(m))
+            .catch(() => alive && setLibAddress(new Map()));
+        return () => {
+            alive = false;
+        };
+    }, []);
+
+    useEffect(() => {
+        if (user?.libraryId) {
+            setMyLibraryId(user.libraryId);
+            return;
+        }
+
+        let alive = true;
+        getMyLibrarian()
+            .then((me) => {
+                if (!alive) return;
+                setMyLibraryId(me?.libraryId != null ? String(me.libraryId) : null);
+            })
+            .catch(() => {
+                if (!alive) return;
+                setMyLibraryId(null);
+            });
+
+        return () => {
+            alive = false;
+        };
+    }, [user?.libraryId]);
+
+    const hasMyLibrary = useMemo(() => Boolean(myLibraryId), [myLibraryId]);
 
     const onReturn = async (issuanceId: string) => {
         try {
@@ -131,6 +177,7 @@ export default function IssuancesPage() {
                                 <th className="py-3 pr-4">ID</th>
                                 <th className="py-3 pr-4">Книга</th>
                                 <th className="py-3 pr-4">Reader</th>
+                                <th className="py-3 pr-4">Библиотека</th>
                                 <th className="py-3 pr-4">Выдано</th>
                                 <th className="py-3 pr-4">Вернуть до</th>
                                 <th className="py-3 pr-4">Статус</th>
@@ -143,12 +190,44 @@ export default function IssuancesPage() {
                                 const disabled = busyId === x.id;
                                 const canReturn = x.status !== "RETURNED";
 
+                                const isMine = myLibraryId ? String(x.libraryId) === String(myLibraryId) : false;
+                                const canActHere = !hasMyLibrary || isMine;
+
                                 return (
                                     <tr key={x.id} className="border-b last:border-b-0">
                                         <td className="py-3 pr-4 font-mono text-xs text-slate-700">{x.id}</td>
                                         <td className="py-3 pr-4 font-semibold text-slate-900">{x.materialTitle}</td>
                                         <td className="py-3 pr-4 font-mono text-xs text-slate-700">{x.readerId}</td>
+
+                                        <td className="py-3 pr-4 text-slate-700">
+                                            <div className="min-w-[220px]">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="text-xs text-slate-500 font-mono">{x.libraryId}</div>
+
+                                                    {hasMyLibrary ? (
+                                                        isMine ? (
+                                                            <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                                                                    моя
+                                                                </span>
+                                                        ) : (
+                                                            <span className="rounded-full bg-slate-50 border border-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                                                                    чужая
+                                                                </span>
+                                                        )
+                                                    ) : null}
+                                                </div>
+
+                                                <div
+                                                    className="text-sm text-slate-700 truncate"
+                                                    title={libAddress.get(x.libraryId) ?? x.libraryId}
+                                                >
+                                                    {libAddress.get(x.libraryId) ?? "—"}
+                                                </div>
+                                            </div>
+                                        </td>
+
                                         <td className="py-3 pr-4 text-slate-700">{x.issuanceDate}</td>
+
                                         <td
                                             className={`py-3 pr-4 ${
                                                 x.status === "OVERDUE"
@@ -158,13 +237,15 @@ export default function IssuancesPage() {
                                         >
                                             {x.returnDeadline}
                                         </td>
+
                                         <td className="py-3 pr-4">
                                             <StatusBadge value={x.status} />
                                         </td>
+
                                         <td className="py-3 pr-2">
                                             <div className="flex justify-end gap-2">
                                                 <button
-                                                    disabled={disabled || !canReturn}
+                                                    disabled={disabled || !canReturn || !canActHere}
                                                     onClick={() => onReturn(x.id)}
                                                     className="rounded-2xl border border-slate-200 bg-white px-3 py-2 font-semibold
                                        hover:bg-brand-50 hover:border-brand-200 transition disabled:opacity-60"
@@ -172,6 +253,12 @@ export default function IssuancesPage() {
                                                     {busyId === x.id ? "…" : "Вернуть"}
                                                 </button>
                                             </div>
+
+                                            {hasMyLibrary && !isMine ? (
+                                                <div className="mt-1 text-xs text-slate-500 text-right">
+                                                    Действия доступны только для своей библиотеки.
+                                                </div>
+                                            ) : null}
                                         </td>
                                     </tr>
                                 );
