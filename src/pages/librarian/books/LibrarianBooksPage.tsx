@@ -42,6 +42,7 @@ type BookInventoryDTO = {
 type FormState = {
     search: string;
     selectedBookId: string;
+    selectedBookQuery: string;
     copiesToAdd: string;
 };
 
@@ -53,7 +54,7 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
         headers: {
             "Content-Type": "application/json",
             ...(init?.headers ?? {}),
-            ...getAuthHeaders(),
+            ...getAuthHeaders(), // Authorization: Bearer <JWT>
         },
     });
 
@@ -74,12 +75,55 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 function normalize(s: string) {
-    return s.trim().toLowerCase();
+    return (s ?? "").trim().toLowerCase();
 }
 
 function prettyAddress(addr?: Record<string, any> | null): string {
     if (!addr) return "—";
-    return JSON.stringify(addr);
+
+    const order = [
+        "country",
+        "region",
+        "state",
+        "province",
+        "city",
+        "settlement",
+        "street",
+        "house",
+        "building",
+        "block",
+        "apartment",
+        "zip",
+        "postalCode",
+    ];
+
+    const parts: string[] = [];
+    for (const k of order) {
+        const v = (addr as any)[k];
+        if (v === null || v === undefined) continue;
+        const s = String(v).trim();
+        if (!s) continue;
+        parts.push(s);
+    }
+
+    if (!parts.length) {
+        for (const [, v] of Object.entries(addr)) {
+            if (v === null || v === undefined) continue;
+            if (typeof v === "object") continue;
+            const s = String(v).trim();
+            if (!s) continue;
+            parts.push(s);
+        }
+    }
+
+    return parts.length ? parts.join(", ") : "—";
+}
+
+function makeOptionLabel(x: MaterialCardDto) {
+    const title = x.title ?? "—";
+    const authors = x.authors ? ` — ${x.authors}` : "";
+    const year = x.year ? ` (${x.year})` : "";
+    return `${title}${authors}${year} [id:${x.id}]`;
 }
 
 export default function LibrarianBooksPage() {
@@ -97,7 +141,8 @@ export default function LibrarianBooksPage() {
     const [form, setForm] = useState<FormState>({
         search: "",
         selectedBookId: "",
-        copiesToAdd: "0",
+        selectedBookQuery: "",
+        copiesToAdd: "",
     });
 
     const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
@@ -110,7 +155,7 @@ export default function LibrarianBooksPage() {
                 listAllMaterials(),
                 getCatalogFacets(),
                 http<LibrarianDTO>(`/librarians/me`),
-                http<LibraryDTO[]>(`/libraries?page=1&size=10000&sortBy=id&sortDir=asc`),
+                http<LibraryDTO[]>(`/libraries?page=0&size=10000&sortBy=id&sortDir=asc`),
             ]);
 
             setItems(list);
@@ -155,14 +200,41 @@ export default function LibrarianBooksPage() {
         return items.find((x) => String(x.id) === String(form.selectedBookId)) ?? null;
     }, [items, form.selectedBookId]);
 
+    const bookSuggestions = useMemo(() => {
+        const q = normalize(form.selectedBookQuery);
+        const base = items;
+
+        if (!q) return base.slice(0, 50);
+
+        const scored = base
+            .map((x) => {
+                const label = normalize(makeOptionLabel(x));
+                const score =
+                    normalize(String(x.id)) === q
+                        ? 4
+                        : label.startsWith(q)
+                            ? 3
+                            : label.includes(q)
+                                ? 2
+                                : 0;
+                return { x, score, label };
+            })
+            .filter((r) => r.score > 0)
+            .sort((a, b) => b.score - a.score || a.label.localeCompare(b.label))
+            .slice(0, 50)
+            .map((r) => r.x);
+
+        return scored.length ? scored : base.slice(0, 50);
+    }, [items, form.selectedBookQuery]);
+
     const validate = (x: FormState): FormErrors => {
         const e: FormErrors = {};
 
-        if (!x.selectedBookId) e.selectedBookId = "Выберите книгу";
+        if (!x.selectedBookId) e.selectedBookId = "Выберите книгу (можно начать вводить название/автора)";
 
         const n = Number(x.copiesToAdd);
-        if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) {
-            e.copiesToAdd = "Введите целое число ≥ 0";
+        if (!Number.isFinite(n) || !Number.isInteger(n) || n < 1) {
+            e.copiesToAdd = "Укажите целое число ≥ 1";
         }
 
         return e;
@@ -170,7 +242,7 @@ export default function LibrarianBooksPage() {
 
     const resetForm = () => {
         setErrors({});
-        setForm({ search: "", selectedBookId: "", copiesToAdd: "0" });
+        setForm({ search: "", selectedBookId: "", selectedBookQuery: "", copiesToAdd: "" });
     };
 
     const onSubmit = async () => {
@@ -191,14 +263,9 @@ export default function LibrarianBooksPage() {
 
         setSaving(true);
         try {
-            if (delta === 0) {
-                await refresh();
-                resetForm();
-                return;
-            }
-
+            // ✅ page=0 (иначе можно не увидеть нужную запись)
             const invs = await http<BookInventoryDTO[]>(
-                `/book-inventories?page=1&size=100000&sortBy=id&sortDir=asc`
+                `/book-inventories?page=0&size=100000&sortBy=id&sortDir=asc`
             );
 
             const existing =
@@ -226,6 +293,8 @@ export default function LibrarianBooksPage() {
 
             await refresh();
             resetForm();
+        } catch (e: any) {
+            alert(`Не удалось добавить копии: ${String(e?.message ?? "")}`);
         } finally {
             setSaving(false);
         }
@@ -235,7 +304,7 @@ export default function LibrarianBooksPage() {
         <div className="p-6">
             <PageHeader
                 title="Инвентарь книг (библиотекарь)"
-                subtitle="Выберите существующую книгу, библиотека определится автоматически, затем добавьте количество копий (0+)."
+                subtitle="Выберите книгу (можно вводить по буквам), библиотека определится автоматически, затем добавьте количество копий (1+)."
                 right={<Button onClick={refresh}>Обновить</Button>}
             />
 
@@ -274,6 +343,7 @@ export default function LibrarianBooksPage() {
                                             onClick={() => {
                                                 setErrors((p) => ({ ...p, selectedBookId: undefined }));
                                                 set("selectedBookId", String(x.id));
+                                                set("selectedBookQuery", makeOptionLabel(x));
                                             }}
                                             className={[
                                                 "text-left rounded-2xl border p-4 transition",
@@ -307,19 +377,32 @@ export default function LibrarianBooksPage() {
                                     Выбранная книга *
                                 </div>
 
-                                <select
-                                    value={form.selectedBookId}
-                                    onChange={(e) => set("selectedBookId", e.target.value)}
+                                <input
+                                    list="books-suggest"
+                                    value={form.selectedBookQuery}
+                                    onChange={(e) => {
+                                        const v = e.target.value;
+                                        set("selectedBookQuery", v);
+                                        setErrors((p) => ({ ...p, selectedBookId: undefined }));
+
+                                        const m = v.match(/\[id:(.+?)\]\s*$/);
+                                        if (m?.[1]) {
+                                            set("selectedBookId", String(m[1]));
+                                            return;
+                                        }
+
+                                        const exact = items.find((x) => makeOptionLabel(x) === v);
+                                        set("selectedBookId", exact ? String(exact.id) : "");
+                                    }}
+                                    placeholder="Начните вводить название/автора…"
                                     className="mt-1 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none
                              focus:border-brand-300 focus:ring-4 focus:ring-brand-200/40"
-                                >
-                                    <option value="">— выберите —</option>
-                                    {filtered.slice(0, 500).map((x) => (
-                                        <option key={x.id} value={String(x.id)}>
-                                            {x.title} — {x.authors}
-                                        </option>
+                                />
+                                <datalist id="books-suggest">
+                                    {bookSuggestions.map((x) => (
+                                        <option key={x.id} value={makeOptionLabel(x)} />
                                     ))}
-                                </select>
+                                </datalist>
 
                                 {errors.selectedBookId ? (
                                     <div className="mt-1.5 text-sm text-red-600">
@@ -346,7 +429,7 @@ export default function LibrarianBooksPage() {
                             </div>
 
                             <TextField
-                                label="Сколько копий добавить (0+) *"
+                                label="Укажите количество копий для добавления (1+) *"
                                 value={form.copiesToAdd}
                                 onChange={(e) => set("copiesToAdd", e.target.value)}
                                 placeholder="Например: 3"
