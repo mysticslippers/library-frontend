@@ -69,13 +69,17 @@ export default function ReaderFinesPage() {
                                         <div className="flex items-start justify-between gap-4">
                                             <div className="min-w-0">
                                                 <div className="flex items-center gap-2">
-                                                    <div className="font-semibold text-slate-900">{f.description}</div>
                                                     <StatusBadge value={f.state} />
+                                                    <div className="font-semibold text-slate-900">
+                                                        {f.description || "Штраф"}
+                                                    </div>
                                                 </div>
 
                                                 <div className="mt-1 text-sm text-slate-600">
                                                     Сумма: <b>{f.amount.toFixed(2)} ₽</b> · Дата: {f.dueDate}
-                                                    {f.paymentDate ? <span className="text-slate-500"> · Оплачено: {f.paymentDate}</span> : null}
+                                                    {f.paymentDate ? (
+                                                        <span className="text-slate-500"> · Оплачено: {f.paymentDate}</span>
+                                                    ) : null}
                                                 </div>
 
                                                 <div className="mt-1 text-xs text-slate-500">
