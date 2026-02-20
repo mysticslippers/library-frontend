@@ -160,3 +160,17 @@ export async function approveBookingByStaff(params: { bookingId: string }) {
     await http(`/loans/${params.bookingId}/approve`, { method: "POST" });
     return { ok: true };
 }
+
+export async function findBookingById(bookingId: string): Promise<Booking> {
+    const loan = await http<BookLoanDTO>(`/loans/${bookingId}`);
+    return {
+        id: String(loan.id),
+        readerId: String(loan.userId),
+        librarianId: null,
+        libraryId: String(loan.libraryId),
+        materialId: String(loan.bookId),
+        bookingDate: toISODate(loan.reservedAt),
+        bookingDeadline: toISODate(loan.reservedUntil),
+        status: mapLoanToBookingStatus(loan.status),
+    };
+}
