@@ -94,7 +94,7 @@ export default function ResetPasswordForm() {
                 label="Новый пароль"
                 type="password"
                 autoComplete="new-password"
-                placeholder="Минимум 8 символов"
+                placeholder="Минимум 6 символов"
                 error={errors.password?.message}
                 {...register("password")}
             />
