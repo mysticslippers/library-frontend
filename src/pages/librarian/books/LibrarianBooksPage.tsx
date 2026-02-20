@@ -6,7 +6,7 @@ import Button from "@/shared/ui/Button";
 
 import { getCatalogFacets, listAllMaterials } from "@/shared/api/libraryMockApi";
 import type { MaterialCardDto } from "@/shared/types/library";
-import { getCurrentSession } from "@/shared/api/authApi";
+import { getAuthHeaders } from "@/shared/api/authApi";
 
 const API_URL = (import.meta as any).env?.VITE_API_URL ?? "http://localhost:8080";
 
@@ -47,18 +47,13 @@ type FormState = {
 
 type FormErrors = Partial<Record<keyof FormState, string>>;
 
-function authHeader(): Record<string, string> {
-    const s = getCurrentSession();
-    return s?.token ? { Authorization: `Bearer ${s.token}` } : {};
-}
-
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
     const res = await fetch(`${API_URL}${path}`, {
         ...init,
         headers: {
             "Content-Type": "application/json",
             ...(init?.headers ?? {}),
-            ...authHeader(),
+            ...getAuthHeaders(),
         },
     });
 
